@@ -26,6 +26,17 @@ export default function Home() {
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [showAddModal, setShowAddModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [walletValueAdjustment, setWalletValueAdjustment] = useState(0);
+  const [verifiedCountAdjustment, setVerifiedCountAdjustment] = useState(0);
+
+  // Handle optimistic wallet value updates from token verification changes
+  const handleTokenVerificationChange = useCallback((mint: string, isVerified: boolean, valueUsd: number | null) => {
+    if (valueUsd === null) return;
+
+    // Update the displayed wallet value instantly without refetching
+    setWalletValueAdjustment(prev => isVerified ? prev + valueUsd : prev - valueUsd);
+    setVerifiedCountAdjustment(prev => isVerified ? prev + 1 : prev - 1);
+  }, []);
 
   // Fetch wallets
   const fetchWallets = useCallback(async () => {
@@ -59,6 +70,9 @@ export default function Home() {
       setPortfolio(portfolioData);
       setBalances(balanceData);
       setError(null);
+      // Reset adjustments when we fetch fresh data
+      setWalletValueAdjustment(0);
+      setVerifiedCountAdjustment(0);
     } catch (err: any) {
       setError(err.message);
       setPortfolio(null);
@@ -208,7 +222,7 @@ export default function Home() {
                   <span className="text-sm text-gray-400">Verified tokens only</span>
                 </div>
                 <p className="text-3xl font-bold text-white mb-2">
-                  ${balances.total_portfolio_value_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${(balances.total_portfolio_value_usd + walletValueAdjustment).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 {balances.total_token_value_usd !== balances.verified_token_value_usd && (
                   <p className="text-sm text-gray-400 mb-4">
@@ -231,7 +245,7 @@ export default function Home() {
                       {balances.tokens.length} tokens
                     </p>
                     <p className="text-xs text-gray-500">
-                      {balances.tokens.filter(t => t.is_verified).length} verified
+                      {balances.tokens.filter(t => t.is_verified).length + verifiedCountAdjustment} verified
                     </p>
                   </div>
                 </div>
@@ -243,7 +257,7 @@ export default function Home() {
               <TokenHoldingsList
                 tokens={balances.tokens}
                 walletAddress={portfolio.wallet_address}
-                onTokenVerificationChange={fetchPortfolio}
+                onTokenVerificationChange={handleTokenVerificationChange}
               />
             )}
 

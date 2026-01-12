@@ -15,7 +15,7 @@ import { TrendingUp, TrendingDown, ExternalLink, ShieldCheck, ShieldOff, EyeOff,
 
 interface TokenPnLCardProps {
   token: TokenPnL;
-  onTokenChange?: () => void;
+  onTokenChange?: (mint: string, isVerified: boolean, valueUsd: number | null) => void;
 }
 
 export default function TokenPnLCard({ token, onTokenChange }: TokenPnLCardProps) {
@@ -29,27 +29,53 @@ export default function TokenPnLCard({ token, onTokenChange }: TokenPnLCardProps
   const isProfit = totalPnL >= 0;
 
   const handleToggleVerification = async () => {
+    const newVerified = !isVerified;
+
+    // Optimistic update
+    setIsVerified(newVerified);
+    if (onTokenChange) {
+      onTokenChange(token.token_address, newVerified, token.current_value_usd);
+    }
+
     setTogglingVerification(true);
     try {
-      const result = await api.toggleTokenVerification(token.token_address);
-      setIsVerified(result.is_verified);
-      if (onTokenChange) onTokenChange();
+      await api.toggleTokenVerification(token.token_address);
     } catch (err) {
       console.error('Failed to toggle verification:', err);
+      // Revert on error
+      setIsVerified(!newVerified);
+      if (onTokenChange) {
+        onTokenChange(token.token_address, !newVerified, token.current_value_usd);
+      }
     } finally {
       setTogglingVerification(false);
     }
   };
 
   const handleToggleHidden = async () => {
+    const newHidden = !isHidden;
+    const wasVerified = isVerified;
+
+    // Optimistic update
+    setIsHidden(newHidden);
+    if (newHidden) setIsVerified(false);
+
+    // If was verified and now hidden, update parent
+    if (onTokenChange && wasVerified && newHidden) {
+      onTokenChange(token.token_address, false, token.current_value_usd);
+    }
+
     setTogglingHidden(true);
     try {
-      const result = await api.toggleTokenHidden(token.token_address);
-      setIsHidden(result.is_hidden);
-      setIsVerified(result.is_verified);
-      if (onTokenChange) onTokenChange();
+      await api.toggleTokenHidden(token.token_address);
     } catch (err) {
       console.error('Failed to toggle hidden:', err);
+      // Revert on error
+      setIsHidden(!newHidden);
+      setIsVerified(wasVerified);
+      if (onTokenChange && wasVerified && newHidden) {
+        onTokenChange(token.token_address, wasVerified, token.current_value_usd);
+      }
     } finally {
       setTogglingHidden(false);
     }

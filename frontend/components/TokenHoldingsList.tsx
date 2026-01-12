@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 interface TokenHoldingsListProps {
   tokens: TokenBalance[];
   walletAddress: string;
-  onTokenVerificationChange?: () => void;
+  onTokenVerificationChange?: (mint: string, isVerified: boolean, valueUsd: number | null) => void;
 }
 
 type TabType = 'all' | 'verified' | 'hidden';
@@ -98,16 +98,28 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
     // Don't allow toggling SOL
     if (mint === 'So11111111111111111111111111111111111111112') return;
 
+    const token = tokens.find(t => t.mint === mint);
+    const currentlyVerified = isTokenVerified(token!);
+    const newVerified = !currentlyVerified;
+
+    // Optimistic update
+    setLocalVerification((prev) => ({ ...prev, [mint]: newVerified }));
+
+    // Update parent with new verification state (for wallet value calculation)
+    if (onTokenVerificationChange && token) {
+      onTokenVerificationChange(mint, newVerified, token.value_usd);
+    }
+
     setTogglingVerification(mint);
     try {
-      const result = await api.toggleTokenVerification(mint);
-      setLocalVerification((prev) => ({ ...prev, [mint]: result.is_verified }));
-      // Refresh balances to update wallet value
-      if (onTokenVerificationChange) {
-        onTokenVerificationChange();
-      }
+      await api.toggleTokenVerification(mint);
     } catch (err) {
       console.error('Failed to toggle verification:', err);
+      // Revert on error
+      setLocalVerification((prev) => ({ ...prev, [mint]: currentlyVerified }));
+      if (onTokenVerificationChange && token) {
+        onTokenVerificationChange(mint, currentlyVerified, token.value_usd);
+      }
     } finally {
       setTogglingVerification(null);
     }
@@ -119,17 +131,33 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
     // Don't allow hiding SOL
     if (mint === 'So11111111111111111111111111111111111111112') return;
 
+    const token = tokens.find(t => t.mint === mint);
+    const currentlyHidden = isTokenHidden(token!);
+    const currentlyVerified = isTokenVerified(token!);
+    const newHidden = !currentlyHidden;
+
+    // Optimistic update - hiding also unverifies
+    setLocalHidden((prev) => ({ ...prev, [mint]: newHidden }));
+    if (newHidden) {
+      setLocalVerification((prev) => ({ ...prev, [mint]: false }));
+    }
+
+    // Update parent (if was verified and now hidden, remove from total)
+    if (onTokenVerificationChange && token && currentlyVerified && newHidden) {
+      onTokenVerificationChange(mint, false, token.value_usd);
+    }
+
     setTogglingHidden(mint);
     try {
-      const result = await api.toggleTokenHidden(mint);
-      setLocalHidden((prev) => ({ ...prev, [mint]: result.is_hidden }));
-      setLocalVerification((prev) => ({ ...prev, [mint]: result.is_verified }));
-      // Refresh balances to update wallet value
-      if (onTokenVerificationChange) {
-        onTokenVerificationChange();
-      }
+      await api.toggleTokenHidden(mint);
     } catch (err) {
       console.error('Failed to toggle hidden:', err);
+      // Revert on error
+      setLocalHidden((prev) => ({ ...prev, [mint]: currentlyHidden }));
+      setLocalVerification((prev) => ({ ...prev, [mint]: currentlyVerified }));
+      if (onTokenVerificationChange && token && currentlyVerified && newHidden) {
+        onTokenVerificationChange(mint, currentlyVerified, token.value_usd);
+      }
     } finally {
       setTogglingHidden(null);
     }
