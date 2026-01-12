@@ -179,9 +179,19 @@ export default function Home() {
                     ? 'bg-sol-purple text-white'
                     : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
                 )}
+                title={wallet.address}
               >
                 <Wallet className="w-4 h-4" />
-                {wallet.label || shortenAddress(wallet.address)}
+                <span>
+                  {wallet.label ? (
+                    <>
+                      {wallet.label}
+                      <span className="text-xs opacity-60 ml-1">({shortenAddress(wallet.address)})</span>
+                    </>
+                  ) : (
+                    shortenAddress(wallet.address)
+                  )}
+                </span>
               </button>
             ))}
           </div>

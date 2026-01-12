@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -9,13 +9,19 @@ import {
   TrendingUp,
   TrendingDown,
   Loader2,
+  Search,
+  Settings,
 } from 'lucide-react';
 import { api, type Portfolio, type TokenPnL, type Wallet } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
-type SortField = 'last_trade' | 'unrealized' | 'realized' | 'total_pnl' | 'balance';
+type SortField = 'last_trade' | 'unrealized' | 'realized' | 'total_pnl' | 'balance' | 'bought' | 'sold' | 'position';
 type SortDirection = 'asc' | 'desc';
 type TabType = 'recently_traded' | 'live_positions' | 'most_profitable';
+type TimePeriod = 'all' | '24h' | '7d' | '30d';
+
+// Helper to shorten wallet addresses
+const shortenAddress = (address: string) => `${address.slice(0, 4)}...${address.slice(-4)}`;
 
 export default function PnLDashboard() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -27,6 +33,11 @@ export default function PnLDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('recently_traded');
   const [sortField, setSortField] = useState<SortField>('last_trade');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showWalletManager, setShowWalletManager] = useState(false);
+  const [editingWallet, setEditingWallet] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
 
   // Fetch wallets
   const fetchWallets = useCallback(async () => {
@@ -89,6 +100,18 @@ export default function PnLDashboard() {
     }
   };
 
+  // Update wallet label
+  const handleUpdateWalletLabel = async (address: string, newLabel: string) => {
+    try {
+      await api.updateWallet(address, { label: newLabel || undefined });
+      fetchWallets();
+      setEditingWallet(null);
+      setEditLabel('');
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   useEffect(() => {
     fetchWallets();
   }, []);
@@ -97,11 +120,48 @@ export default function PnLDashboard() {
     fetchPortfolio();
   }, [selectedWallet, fetchPortfolio]);
 
-  // Calculate stats
-  const stats = portfolio ? calculateStats(portfolio) : null;
+  // Filter tokens by time period
+  const filteredByTime = useMemo(() => {
+    if (!portfolio) return [];
+    if (timePeriod === 'all') return portfolio.tokens;
+
+    const now = new Date();
+    const cutoff = new Date();
+
+    switch (timePeriod) {
+      case '24h':
+        cutoff.setHours(now.getHours() - 24);
+        break;
+      case '7d':
+        cutoff.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        cutoff.setDate(now.getDate() - 30);
+        break;
+    }
+
+    return portfolio.tokens.filter(t => {
+      if (!t.last_trade) return false;
+      return new Date(t.last_trade) >= cutoff;
+    });
+  }, [portfolio, timePeriod]);
+
+  // Calculate stats based on filtered tokens
+  const stats = portfolio ? calculateStats(portfolio, filteredByTime) : null;
+
+  // Filter by search query
+  const searchFiltered = useMemo(() => {
+    if (!searchQuery.trim()) return filteredByTime;
+    const query = searchQuery.toLowerCase();
+    return filteredByTime.filter(t =>
+      t.token_symbol.toLowerCase().includes(query) ||
+      t.token_name.toLowerCase().includes(query) ||
+      t.token_address.toLowerCase().includes(query)
+    );
+  }, [filteredByTime, searchQuery]);
 
   // Sort and filter tokens
-  const sortedTokens = portfolio ? getSortedTokens(portfolio.tokens, activeTab, sortField, sortDirection) : [];
+  const sortedTokens = getSortedTokens(searchFiltered, activeTab, sortField, sortDirection);
 
   // Format helpers
   const formatUSD = (value: number | null, showSign = false) => {
@@ -177,19 +237,31 @@ export default function PnLDashboard() {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Wallet selector */}
+              {/* Wallet selector with shortened address */}
               {wallets.length > 0 && (
-                <select
-                  value={selectedWallet || ''}
-                  onChange={(e) => setSelectedWallet(e.target.value)}
-                  className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm"
-                >
-                  {wallets.map((wallet) => (
-                    <option key={wallet.address} value={wallet.address}>
-                      {wallet.label || wallet.address.slice(0, 8) + '...'}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={selectedWallet || ''}
+                    onChange={(e) => setSelectedWallet(e.target.value)}
+                    className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm"
+                    title="Select wallet"
+                    aria-label="Select wallet"
+                  >
+                    {wallets.map((wallet) => (
+                      <option key={wallet.address} value={wallet.address}>
+                        {wallet.label ? `${wallet.label} (${shortenAddress(wallet.address)})` : shortenAddress(wallet.address)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowWalletManager(!showWalletManager)}
+                    className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                    title="Manage wallets"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                </div>
               )}
 
               <button
@@ -205,7 +277,112 @@ export default function PnLDashboard() {
         </div>
       </header>
 
+      {/* Wallet Manager Modal */}
+      {showWalletManager && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Manage Wallets</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWalletManager(false);
+                  setEditingWallet(null);
+                }}
+                className="p-2 hover:bg-gray-800 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-3 overflow-y-auto max-h-[60vh]">
+              {wallets.map((wallet) => (
+                <div key={wallet.address} className="bg-gray-800/50 border border-gray-700 rounded-lg p-3">
+                  {editingWallet === wallet.address ? (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        placeholder="Wallet label (optional)"
+                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm"
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateWalletLabel(wallet.address, editLabel)}
+                          className="px-3 py-1 bg-sol-purple hover:bg-sol-purple/80 rounded text-sm"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingWallet(null);
+                            setEditLabel('');
+                          }}
+                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{wallet.label || 'Unnamed Wallet'}</p>
+                        <p className="text-xs text-gray-400 font-mono">{shortenAddress(wallet.address)}</p>
+                        <p className="text-xs text-gray-500 mt-1">Full: {wallet.address}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingWallet(wallet.address);
+                          setEditLabel(wallet.label || '');
+                        }}
+                        className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Time Period Selector */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">Time Period:</span>
+            <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+              {(['all', '24h', '7d', '30d'] as TimePeriod[]).map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() => setTimePeriod(period)}
+                  className={cn(
+                    'px-3 py-1 text-sm rounded-md transition-colors',
+                    timePeriod === period
+                      ? 'bg-sol-purple text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  )}
+                >
+                  {period === 'all' ? 'All Time' : period.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          {selectedWallet && (
+            <p className="text-sm text-gray-500">
+              Viewing: <span className="font-mono text-gray-400">{shortenAddress(selectedWallet)}</span>
+            </p>
+          )}
+        </div>
+
         {/* Loading State */}
         {loading && (
           <div className="flex items-center justify-center py-20">
@@ -348,10 +525,11 @@ export default function PnLDashboard() {
 
             {/* Tabs and Table */}
             <div className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden">
-              {/* Tabs */}
-              <div className="border-b border-gray-700 px-4 py-3 flex items-center justify-between">
+              {/* Tabs and Search */}
+              <div className="border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-wrap gap-3">
                 <div className="flex gap-4">
                   <button
+                    type="button"
                     onClick={() => setActiveTab('recently_traded')}
                     className={cn(
                       'text-sm font-medium transition-colors',
@@ -361,6 +539,7 @@ export default function PnLDashboard() {
                     Recently Traded
                   </button>
                   <button
+                    type="button"
                     onClick={() => setActiveTab('live_positions')}
                     className={cn(
                       'text-sm font-medium transition-colors',
@@ -370,6 +549,7 @@ export default function PnLDashboard() {
                     Live Positions
                   </button>
                   <button
+                    type="button"
                     onClick={() => setActiveTab('most_profitable')}
                     className={cn(
                       'text-sm font-medium transition-colors',
@@ -379,6 +559,18 @@ export default function PnLDashboard() {
                     Most Profitable
                   </button>
                 </div>
+
+                {/* Search Input */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search tokens..."
+                    className="pl-9 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm w-48 focus:outline-none focus:border-sol-purple"
+                  />
+                </div>
               </div>
 
               {/* Table Header */}
@@ -387,33 +579,45 @@ export default function PnLDashboard() {
                   <thead>
                     <tr className="text-xs text-gray-500 border-b border-gray-700/50">
                       <th className="text-left px-4 py-3 font-medium">
-                        <button onClick={() => handleSort('last_trade')} className="flex items-center gap-1 hover:text-gray-300">
+                        <button type="button" onClick={() => handleSort('last_trade')} className="flex items-center gap-1 hover:text-gray-300">
                           Last Traded {sortField === 'last_trade' && (sortDirection === 'desc' ? '↓' : '↑')}
                         </button>
                       </th>
                       <th className="text-right px-4 py-3 font-medium">
-                        <button onClick={() => handleSort('unrealized')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
+                        <button type="button" onClick={() => handleSort('unrealized')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
                           Unrealised {sortField === 'unrealized' && (sortDirection === 'desc' ? '↓' : '↑')}
                         </button>
                       </th>
                       <th className="text-right px-4 py-3 font-medium">
-                        <button onClick={() => handleSort('realized')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
+                        <button type="button" onClick={() => handleSort('realized')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
                           Realised {sortField === 'realized' && (sortDirection === 'desc' ? '↓' : '↑')}
                         </button>
                       </th>
                       <th className="text-right px-4 py-3 font-medium">
-                        <button onClick={() => handleSort('total_pnl')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
+                        <button type="button" onClick={() => handleSort('total_pnl')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
                           Total PnL {sortField === 'total_pnl' && (sortDirection === 'desc' ? '↓' : '↑')}
                         </button>
                       </th>
                       <th className="text-right px-4 py-3 font-medium">
-                        <button onClick={() => handleSort('balance')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
+                        <button type="button" onClick={() => handleSort('balance')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
                           Balance {sortField === 'balance' && (sortDirection === 'desc' ? '↓' : '↑')}
                         </button>
                       </th>
-                      <th className="text-right px-4 py-3 font-medium">Bought / Avg</th>
-                      <th className="text-right px-4 py-3 font-medium">Sold / Avg</th>
-                      <th className="text-right px-4 py-3 font-medium">Position %</th>
+                      <th className="text-right px-4 py-3 font-medium">
+                        <button type="button" onClick={() => handleSort('bought')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
+                          Bought / Avg {sortField === 'bought' && (sortDirection === 'desc' ? '↓' : '↑')}
+                        </button>
+                      </th>
+                      <th className="text-right px-4 py-3 font-medium">
+                        <button type="button" onClick={() => handleSort('sold')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
+                          Sold / Avg {sortField === 'sold' && (sortDirection === 'desc' ? '↓' : '↑')}
+                        </button>
+                      </th>
+                      <th className="text-right px-4 py-3 font-medium">
+                        <button type="button" onClick={() => handleSort('position')} className="flex items-center gap-1 hover:text-gray-300 ml-auto">
+                          Position % {sortField === 'position' && (sortDirection === 'desc' ? '↓' : '↑')}
+                        </button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700/30">
@@ -576,20 +780,20 @@ export default function PnLDashboard() {
   );
 }
 
-// Helper function to calculate stats
-function calculateStats(portfolio: Portfolio) {
-  const tokens = portfolio.tokens;
+// Helper function to calculate stats (uses filtered tokens for time period)
+function calculateStats(portfolio: Portfolio, filteredTokens: TokenPnL[]) {
+  const tokens = filteredTokens;
 
   // Holdings (current value of all positions)
   const totalHoldings = tokens.reduce((sum, t) => sum + (t.current_value_usd || 0), 0);
 
-  // Unrealized P&L
-  const unrealizedPnL = portfolio.total_unrealized_pnl_usd;
+  // Unrealized P&L (based on filtered tokens)
+  const unrealizedPnL = tokens.reduce((sum, t) => sum + (t.unrealized_pnl_usd || 0), 0);
   const totalCostUsd = tokens.reduce((sum, t) => sum + (t.current_balance > 0 ? t.total_cost_sol * 200 : 0), 0); // Rough estimate
   const unrealizedPnLPercent = totalCostUsd > 0 ? (unrealizedPnL / totalCostUsd) * 100 : 0;
 
-  // Realized P&L
-  const realizedPnL = portfolio.total_realized_pnl_usd;
+  // Realized P&L (based on filtered tokens)
+  const realizedPnL = tokens.reduce((sum, t) => sum + t.realized_pnl_usd, 0);
 
   // Total P&L
   const totalPnL = unrealizedPnL + realizedPnL;
@@ -713,6 +917,18 @@ function getSortedTokens(tokens: TokenPnL[], tab: TabType, sortField: SortField,
       case 'balance':
         aVal = a.current_value_usd || 0;
         bVal = b.current_value_usd || 0;
+        break;
+      case 'bought':
+        aVal = a.total_buy_sol;
+        bVal = b.total_buy_sol;
+        break;
+      case 'sold':
+        aVal = a.total_sell_sol;
+        bVal = b.total_sell_sol;
+        break;
+      case 'position':
+        aVal = a.total_bought > 0 ? (a.current_balance / a.total_bought) * 100 : 0;
+        bVal = b.total_bought > 0 ? (b.current_balance / b.total_bought) * 100 : 0;
         break;
     }
 
