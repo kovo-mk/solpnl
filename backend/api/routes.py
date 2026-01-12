@@ -534,6 +534,15 @@ async def get_wallet_balances(address: str, db: Session = Depends(get_db)):
         price_usd = prices.get(mint)
         value_usd = balance * price_usd if price_usd else None
 
+        # Auto-verify tokens that have a valid price (real tradeable tokens)
+        # Only unverified/non-hidden tokens get auto-verified
+        if price_usd is not None and price_usd > 0 and not is_hidden and not is_verified:
+            is_verified = True
+            # Update DB so it persists
+            if token and not token.is_verified:
+                token.is_verified = True
+                db.commit()
+
         # Filter out dust tokens (worth less than $0.01)
         if value_usd is not None and value_usd < MIN_TOKEN_VALUE_USD:
             continue
