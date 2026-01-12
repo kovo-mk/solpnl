@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Plus,
   Wallet,
@@ -9,6 +10,7 @@ import {
   RefreshCw,
   Loader2,
   BarChart3,
+  LineChart,
 } from 'lucide-react';
 import { api, type Portfolio, type Wallet as WalletType, type SyncStatus, type WalletBalances } from '@/lib/api';
 import { formatUSD, formatPnL, cn, shortenAddress, timeAgo } from '@/lib/utils';
@@ -143,13 +145,22 @@ export default function Home() {
               </div>
             </div>
 
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Add Wallet
-            </button>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/pnl"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
+              >
+                <LineChart className="w-4 h-4" />
+                P&L Dashboard
+              </Link>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add Wallet
+              </button>
+            </div>
           </div>
         </div>
       </header>
