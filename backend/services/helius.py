@@ -1,0 +1,429 @@
+"""Helius API service for fetching Solana transaction history."""
+import asyncio
+from datetime import datetime
+from typing import List, Optional, Dict, Any
+import aiohttp
+from loguru import logger
+
+from config import settings
+
+
+# Known wrapped SOL mint
+WSOL_MINT = "So11111111111111111111111111111111111111112"
+
+# Known DEX program IDs for swap detection
+DEX_PROGRAMS = {
+    "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4": "jupiter",
+    "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8": "raydium",
+    "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc": "orca",
+    "SSwpkEEcbUqx4vtoEByFjSkhKdCT862DNVb52nZg1UZ": "saber",
+}
+
+
+class HeliusService:
+    """Service for interacting with Helius API."""
+
+    def __init__(self):
+        self.api_key = settings.helius_api_key
+        self.base_url = "https://api.helius.xyz"
+        self.rpc_url = f"https://mainnet.helius-rpc.com/?api-key={self.api_key}"
+
+    async def get_wallet_transactions(
+        self,
+        wallet_address: str,
+        limit: int = 100,
+        before_signature: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch enhanced transactions for a wallet from Helius.
+
+        Args:
+            wallet_address: Solana wallet address
+            limit: Max transactions to fetch (max 100 per request)
+            before_signature: Pagination cursor
+
+        Returns:
+            List of enhanced transaction data
+        """
+        if not self.api_key:
+            logger.error("No Helius API key configured")
+            return []
+
+        try:
+            url = f"{self.base_url}/v0/addresses/{wallet_address}/transactions"
+            params = {
+                "api-key": self.api_key,
+                "limit": min(limit, 100)
+            }
+            if before_signature:
+                params["before"] = before_signature
+
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params) as response:
+                    if response.status != 200:
+                        text = await response.text()
+                        logger.error(f"Helius API error: {response.status} - {text}")
+                        return []
+
+                    data = await response.json()
+                    return data
+
+        except Exception as e:
+            logger.error(f"Error fetching wallet transactions: {e}")
+            return []
+
+    def parse_swap_transaction(
+        self,
+        tx: Dict[str, Any],
+        wallet_address: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Parse a Helius enhanced transaction to extract swap data.
+
+        Args:
+            tx: Enhanced transaction from Helius
+            wallet_address: The wallet we're tracking
+
+        Returns:
+            Parsed swap data or None if not a swap
+        """
+        try:
+            signature = tx.get("signature")
+            timestamp = tx.get("timestamp")
+            tx_type = tx.get("type", "")
+            source = tx.get("source", "unknown")
+
+            # Check if this is a swap
+            is_swap = tx_type == "SWAP" or "SWAP" in tx_type.upper()
+
+            if not is_swap:
+                return None
+
+            # Get token transfers
+            token_transfers = tx.get("tokenTransfers", [])
+            native_transfers = tx.get("nativeTransfers", [])
+
+            # Track changes per token (excluding SOL/WSOL)
+            token_changes: Dict[str, float] = {}  # mint -> amount change
+            sol_change = 0.0
+
+            # Process token transfers
+            for transfer in token_transfers:
+                mint = transfer.get("mint", "")
+                from_addr = transfer.get("fromUserAccount", "")
+                to_addr = transfer.get("toUserAccount", "")
+                amount = float(transfer.get("tokenAmount", 0) or 0)
+
+                if amount <= 0:
+                    continue
+
+                # Track WSOL separately as SOL
+                if mint == WSOL_MINT:
+                    if to_addr == wallet_address:
+                        sol_change += amount
+                    elif from_addr == wallet_address:
+                        sol_change -= amount
+                else:
+                    # Regular token
+                    if mint not in token_changes:
+                        token_changes[mint] = 0
+                    if to_addr == wallet_address:
+                        token_changes[mint] += amount
+                    elif from_addr == wallet_address:
+                        token_changes[mint] -= amount
+
+            # Process native SOL transfers
+            for transfer in native_transfers:
+                from_addr = transfer.get("fromUserAccount", "")
+                to_addr = transfer.get("toUserAccount", "")
+                amount = float(transfer.get("amount", 0) or 0) / 1e9  # lamports to SOL
+
+                if amount < 0.0001:  # Skip dust
+                    continue
+
+                if to_addr == wallet_address:
+                    sol_change += amount
+                elif from_addr == wallet_address:
+                    sol_change -= amount
+
+            # Find the token with the largest change (the token being traded)
+            if not token_changes:
+                return None
+
+            # Get the token with the biggest absolute change
+            traded_token = max(token_changes.items(), key=lambda x: abs(x[1]))
+            token_mint = traded_token[0]
+            token_change = traded_token[1]
+
+            if abs(token_change) < 0.0001:
+                return None
+
+            # Determine swap type
+            if token_change > 0:
+                # Gained tokens = BUY
+                swap_type = "buy"
+                amount_token = token_change
+                amount_sol = abs(sol_change) if sol_change < 0 else 0
+
+                # If no direct SOL change, estimate from other flows
+                if amount_sol == 0:
+                    # Look for the largest SOL outflow
+                    for transfer in native_transfers:
+                        if transfer.get("fromUserAccount") == wallet_address:
+                            amount_sol = max(amount_sol, float(transfer.get("amount", 0) or 0) / 1e9)
+            else:
+                # Lost tokens = SELL
+                swap_type = "sell"
+                amount_token = abs(token_change)
+                amount_sol = sol_change if sol_change > 0 else 0
+
+                # If no direct SOL change, estimate from other flows
+                if amount_sol == 0:
+                    for transfer in native_transfers:
+                        if transfer.get("toUserAccount") == wallet_address:
+                            amount_sol = max(amount_sol, float(transfer.get("amount", 0) or 0) / 1e9)
+
+            # Calculate price per token
+            price_per_token = amount_sol / amount_token if amount_token > 0 else 0
+
+            # Determine DEX name
+            dex_name = source.lower() if source else "unknown"
+            for program_id, dex in DEX_PROGRAMS.items():
+                if program_id in str(tx.get("accountData", [])):
+                    dex_name = dex
+                    break
+
+            return {
+                "signature": signature,
+                "wallet_address": wallet_address,
+                "token_mint": token_mint,
+                "tx_type": swap_type,
+                "amount_token": amount_token,
+                "amount_sol": amount_sol,
+                "price_per_token": price_per_token,
+                "dex_name": dex_name,
+                "block_time": datetime.utcfromtimestamp(timestamp) if timestamp else None
+            }
+
+        except Exception as e:
+            logger.warning(f"Error parsing swap transaction {tx.get('signature', 'unknown')[:8]}...: {e}")
+            return None
+
+    async def fetch_all_swaps(
+        self,
+        wallet_address: str,
+        max_transactions: int = 1000,
+        progress_callback=None
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch all swap transactions for a wallet.
+
+        Args:
+            wallet_address: Wallet to fetch swaps for
+            max_transactions: Maximum transactions to fetch
+            progress_callback: Optional callback(fetched, parsed)
+
+        Returns:
+            List of parsed swap transactions
+        """
+        swaps = []
+        before_sig = None
+        total_fetched = 0
+
+        while total_fetched < max_transactions:
+            batch_size = min(100, max_transactions - total_fetched)
+            transactions = await self.get_wallet_transactions(
+                wallet_address,
+                limit=batch_size,
+                before_signature=before_sig
+            )
+
+            if not transactions:
+                break
+
+            total_fetched += len(transactions)
+
+            # Parse each transaction
+            for tx in transactions:
+                swap = self.parse_swap_transaction(tx, wallet_address)
+                if swap:
+                    swaps.append(swap)
+
+            # Update pagination
+            if transactions:
+                before_sig = transactions[-1].get("signature")
+
+            if progress_callback:
+                await progress_callback(total_fetched, len(swaps))
+
+            # Rate limiting
+            await asyncio.sleep(0.3)
+
+            logger.info(f"Fetched {total_fetched} transactions, found {len(swaps)} swaps")
+
+        return swaps
+
+    async def get_token_metadata(self, token_mint: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch token metadata from Helius DAS API.
+
+        Args:
+            token_mint: Token mint address
+
+        Returns:
+            Token metadata or None
+        """
+        if not self.api_key:
+            return None
+
+        try:
+            url = self.rpc_url
+            payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getAsset",
+                "params": {"id": token_mint}
+            }
+
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload) as response:
+                    if response.status != 200:
+                        return None
+
+                    data = await response.json()
+                    result = data.get("result", {})
+
+                    if not result:
+                        return None
+
+                    content = result.get("content", {})
+                    metadata = content.get("metadata", {})
+                    links = content.get("links", {})
+
+                    return {
+                        "address": token_mint,
+                        "symbol": metadata.get("symbol", "???"),
+                        "name": metadata.get("name", "Unknown"),
+                        "decimals": result.get("token_info", {}).get("decimals", 9),
+                        "logo_url": links.get("image") or content.get("json_uri")
+                    }
+
+        except Exception as e:
+            logger.warning(f"Error fetching token metadata for {token_mint[:8]}...: {e}")
+            return None
+
+
+
+    async def get_wallet_balances(self, wallet_address: str) -> Dict[str, Any]:
+        """
+        Fetch current token balances for a wallet using Helius RPC.
+
+        Returns:
+            Dict with 'sol_balance' and 'tokens' list
+        """
+        if not self.api_key:
+            return {"sol_balance": 0, "tokens": []}
+
+        try:
+            url = self.rpc_url
+
+            # Get SOL balance
+            sol_payload = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "getBalance",
+                "params": [wallet_address]
+            }
+
+            # Get token accounts - SPL Token (original)
+            spl_tokens_payload = {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "getTokenAccountsByOwner",
+                "params": [
+                    wallet_address,
+                    {"programId": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"},
+                    {"encoding": "jsonParsed"}
+                ]
+            }
+
+            # Get token accounts - Token-2022 (newer standard)
+            token2022_payload = {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "getTokenAccountsByOwner",
+                "params": [
+                    wallet_address,
+                    {"programId": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"},
+                    {"encoding": "jsonParsed"}
+                ]
+            }
+
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Fetch SOL balance
+                sol_balance = 0
+                async with session.post(url, json=sol_payload) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        sol_balance = (data.get("result", {}).get("value", 0) or 0) / 1e9
+
+                # Fetch SPL token accounts
+                tokens = []
+                seen_mints = set()
+
+                async with session.post(url, json=spl_tokens_payload) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        accounts = data.get("result", {}).get("value", [])
+
+                        for account in accounts:
+                            parsed = account.get("account", {}).get("data", {}).get("parsed", {})
+                            info = parsed.get("info", {})
+                            token_amount = info.get("tokenAmount", {})
+                            mint = info.get("mint")
+
+                            amount = float(token_amount.get("uiAmount") or 0)
+                            if amount > 0 and mint:  # Only include non-zero balances
+                                tokens.append({
+                                    "mint": mint,
+                                    "balance": amount,
+                                    "decimals": token_amount.get("decimals", 9)
+                                })
+                                seen_mints.add(mint)
+
+                # Fetch Token-2022 accounts
+                async with session.post(url, json=token2022_payload) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        accounts = data.get("result", {}).get("value", [])
+
+                        for account in accounts:
+                            parsed = account.get("account", {}).get("data", {}).get("parsed", {})
+                            info = parsed.get("info", {})
+                            token_amount = info.get("tokenAmount", {})
+                            mint = info.get("mint")
+
+                            amount = float(token_amount.get("uiAmount") or 0)
+                            if amount > 0 and mint and mint not in seen_mints:
+                                tokens.append({
+                                    "mint": mint,
+                                    "balance": amount,
+                                    "decimals": token_amount.get("decimals", 9)
+                                })
+
+                logger.info(f"Fetched balances for {wallet_address[:8]}...: {sol_balance:.4f} SOL, {len(tokens)} tokens")
+                return {
+                    "sol_balance": sol_balance,
+                    "tokens": tokens
+                }
+
+        except Exception as e:
+            logger.error(f"Error fetching wallet balances: {e}")
+            return {"sol_balance": 0, "tokens": []}
+
+
+# Singleton instance
+helius_service = HeliusService()
