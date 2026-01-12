@@ -1,13 +1,18 @@
 """Price fetching service using Jupiter and other APIs."""
 import asyncio
 from datetime import datetime, timedelta
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import aiohttp
 from loguru import logger
 
 
 class PriceService:
     """Service for fetching token prices."""
+
+    # Jupiter Lite API (free, no API key required until Jan 2026)
+    JUPITER_LITE_URL = "https://lite-api.jup.ag/price/v3"
+    # Fallback to DexScreener
+    DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/tokens"
 
     def __init__(self):
         self._sol_price_cache: Optional[float] = None
@@ -26,8 +31,27 @@ class PriceService:
             return self._sol_price_cache
 
         timeout = aiohttp.ClientTimeout(total=10)
+        sol_mint = "So11111111111111111111111111111111111111112"
 
-        # Try CoinGecko
+        # Try Jupiter Lite API first
+        try:
+            url = f"{self.JUPITER_LITE_URL}?ids={sol_mint}"
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        token_data = data.get("data", {}).get(sol_mint)
+                        if token_data:
+                            price = token_data.get("price")
+                            if price:
+                                self._sol_price_cache = float(price)
+                                self._sol_price_updated = datetime.utcnow()
+                                logger.debug(f"Jupiter Lite SOL price: ${price}")
+                                return self._sol_price_cache
+        except Exception as e:
+            logger.warning(f"Jupiter Lite SOL price error: {e}")
+
+        # Fallback to CoinGecko
         try:
             url = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -41,22 +65,6 @@ class PriceService:
                             return self._sol_price_cache
         except Exception as e:
             logger.warning(f"CoinGecko price error: {e}")
-
-        # Fallback to Jupiter
-        try:
-            sol_mint = "So11111111111111111111111111111111111111112"
-            url = f"https://api.jup.ag/price/v2?ids={sol_mint}"
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        price = data.get("data", {}).get(sol_mint, {}).get("price")
-                        if price:
-                            self._sol_price_cache = float(price)
-                            self._sol_price_updated = datetime.utcnow()
-                            return self._sol_price_cache
-        except Exception as e:
-            logger.warning(f"Jupiter SOL price error: {e}")
 
         # Return cached or default
         return self._sol_price_cache or 200.0
@@ -79,55 +87,106 @@ class PriceService:
 
         timeout = aiohttp.ClientTimeout(total=10)
 
-        # Try Jupiter v2 API
+        # Try Jupiter Lite API first
         try:
-            url = f"https://api.jup.ag/price/v2?ids={token_mint}"
+            url = f"{self.JUPITER_LITE_URL}?ids={token_mint}"
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url) as response:
                     if response.status == 200:
                         data = await response.json()
-                        price = data.get("data", {}).get(token_mint, {}).get("price")
-                        if price:
-                            self._token_price_cache[token_mint] = (float(price), datetime.utcnow())
-                            return float(price)
+                        token_data = data.get("data", {}).get(token_mint)
+                        if token_data:
+                            price = token_data.get("price")
+                            if price:
+                                self._token_price_cache[token_mint] = (float(price), datetime.utcnow())
+                                return float(price)
         except Exception as e:
-            logger.warning(f"Jupiter v2 price error for {token_mint[:8]}...: {e}")
+            logger.warning(f"Jupiter Lite price error for {token_mint[:8]}...: {e}")
 
-        # Try Jupiter v4 API
+        # Fallback to DexScreener
         try:
-            url = f"https://price.jup.ag/v4/price?ids={token_mint}"
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        price = data.get("data", {}).get(token_mint, {}).get("price")
-                        if price:
-                            self._token_price_cache[token_mint] = (float(price), datetime.utcnow())
-                            return float(price)
-        except Exception as e:
-            logger.warning(f"Jupiter v4 price error for {token_mint[:8]}...: {e}")
-
-        # Try DexScreener
-        try:
-            url = f"https://api.dexscreener.com/latest/dex/tokens/{token_mint}"
+            url = f"{self.DEXSCREENER_URL}/{token_mint}"
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url) as response:
                     if response.status == 200:
                         data = await response.json()
                         pairs = data.get("pairs", [])
                         if pairs:
-                            price = pairs[0].get("priceUsd")
-                            if price:
-                                self._token_price_cache[token_mint] = (float(price), datetime.utcnow())
-                                return float(price)
+                            # Get Solana pairs with highest liquidity
+                            solana_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+                            if solana_pairs:
+                                best_pair = max(solana_pairs, key=lambda p: float(p.get("liquidity", {}).get("usd", 0) or 0))
+                                price = best_pair.get("priceUsd")
+                                if price:
+                                    self._token_price_cache[token_mint] = (float(price), datetime.utcnow())
+                                    return float(price)
         except Exception as e:
             logger.warning(f"DexScreener price error for {token_mint[:8]}...: {e}")
 
         return None
 
+    async def _fetch_jupiter_batch(self, mints: List[str], session: aiohttp.ClientSession) -> Dict[str, float]:
+        """Fetch prices for a batch of tokens from Jupiter (max 50 per request)."""
+        results = {}
+        if not mints:
+            return results
+
+        try:
+            # Jupiter allows up to 50 tokens per request
+            ids_param = ",".join(mints)
+            url = f"{self.JUPITER_LITE_URL}?ids={ids_param}"
+            timeout = aiohttp.ClientTimeout(total=15)
+
+            async with session.get(url, timeout=timeout) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    token_data = data.get("data", {})
+
+                    for mint in mints:
+                        if mint in token_data and token_data[mint]:
+                            price = token_data[mint].get("price")
+                            if price:
+                                results[mint] = float(price)
+                                self._token_price_cache[mint] = (float(price), datetime.utcnow())
+
+                    logger.debug(f"Jupiter batch: {len(results)}/{len(mints)} prices found")
+                elif response.status == 429:
+                    logger.warning("Jupiter rate limit hit, falling back to DexScreener")
+                else:
+                    logger.warning(f"Jupiter batch error: {response.status}")
+        except Exception as e:
+            logger.warning(f"Jupiter batch error: {e}")
+
+        return results
+
+    async def _fetch_dexscreener_single(self, mint: str, session: aiohttp.ClientSession) -> Optional[float]:
+        """Fetch price for a single token from DexScreener."""
+        try:
+            url = f"{self.DEXSCREENER_URL}/{mint}"
+            timeout = aiohttp.ClientTimeout(total=8)
+
+            async with session.get(url, timeout=timeout) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    pairs = data.get("pairs", [])
+                    if pairs:
+                        solana_pairs = [p for p in pairs if p.get("chainId") == "solana"]
+                        if solana_pairs:
+                            best_pair = max(solana_pairs, key=lambda p: float(p.get("liquidity", {}).get("usd", 0) or 0))
+                            price = best_pair.get("priceUsd")
+                            if price:
+                                return float(price)
+        except Exception as e:
+            logger.warning(f"DexScreener error for {mint[:8]}...: {e}")
+
+        return None
+
     async def get_multiple_token_prices(self, token_mints: list) -> Dict[str, Optional[float]]:
         """
-        Get prices for multiple tokens efficiently using DexScreener.
+        Get prices for multiple tokens efficiently.
+
+        Uses Jupiter Lite API for batch requests (up to 50 tokens at once),
+        then falls back to DexScreener for any missing prices.
 
         Args:
             token_mints: List of token mint addresses
@@ -136,45 +195,47 @@ class PriceService:
             Dict mapping mint -> price (or None)
         """
         results = {}
+        mints_to_fetch = []
 
-        # DexScreener is now the primary source (Jupiter requires API key)
-        logger.info(f"Fetching prices for {len(token_mints)} tokens from DexScreener")
+        # Check cache first
+        for mint in token_mints:
+            if mint in self._token_price_cache:
+                cached_price, cached_time = self._token_price_cache[mint]
+                if datetime.utcnow() - cached_time < self._cache_duration:
+                    results[mint] = cached_price
+                    continue
+            mints_to_fetch.append(mint)
 
-        # Limit number of API calls to avoid rate limiting
-        MAX_DEXSCREENER_CALLS = 40
-        mints_to_check = token_mints[:MAX_DEXSCREENER_CALLS]
+        if not mints_to_fetch:
+            return results
+
+        logger.info(f"Fetching prices for {len(mints_to_fetch)} tokens ({len(token_mints) - len(mints_to_fetch)} cached)")
 
         async with aiohttp.ClientSession() as session:
-            for mint in mints_to_check:
-                # Check cache first
-                if mint in self._token_price_cache:
-                    cached_price, cached_time = self._token_price_cache[mint]
-                    if datetime.utcnow() - cached_time < self._cache_duration:
-                        results[mint] = cached_price
-                        continue
+            # Try Jupiter Lite API first (batch requests, up to 50 tokens each)
+            for i in range(0, len(mints_to_fetch), 50):
+                batch = mints_to_fetch[i:i + 50]
+                jupiter_results = await self._fetch_jupiter_batch(batch, session)
+                results.update(jupiter_results)
 
-                try:
-                    url = f"https://api.dexscreener.com/latest/dex/tokens/{mint}"
-                    timeout = aiohttp.ClientTimeout(total=8)
-                    async with session.get(url, timeout=timeout) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            pairs = data.get("pairs", [])
-                            if pairs:
-                                # Get the pair with highest liquidity on Solana
-                                solana_pairs = [p for p in pairs if p.get("chainId") == "solana"]
-                                if solana_pairs:
-                                    best_pair = max(solana_pairs, key=lambda p: float(p.get("liquidity", {}).get("usd", 0) or 0))
-                                    price = best_pair.get("priceUsd")
-                                    if price:
-                                        results[mint] = float(price)
-                                        self._token_price_cache[mint] = (float(price), datetime.utcnow())
-                                        logger.debug(f"DexScreener price for {mint[:8]}...: ${price}")
-                    await asyncio.sleep(0.1)  # Rate limiting for DexScreener
-                except asyncio.TimeoutError:
-                    logger.warning(f"DexScreener timeout for {mint[:8]}...")
-                except Exception as e:
-                    logger.warning(f"DexScreener error for {mint[:8]}...: {e}")
+                # Small delay between batches to avoid rate limiting
+                if i + 50 < len(mints_to_fetch):
+                    await asyncio.sleep(0.2)
+
+            # Find tokens still missing prices
+            missing_mints = [m for m in mints_to_fetch if m not in results]
+
+            if missing_mints:
+                logger.info(f"Fetching {len(missing_mints)} missing prices from DexScreener")
+
+                # Limit DexScreener calls to avoid rate limiting
+                MAX_DEXSCREENER_CALLS = 20
+                for mint in missing_mints[:MAX_DEXSCREENER_CALLS]:
+                    price = await self._fetch_dexscreener_single(mint, session)
+                    if price:
+                        results[mint] = price
+                        self._token_price_cache[mint] = (price, datetime.utcnow())
+                    await asyncio.sleep(0.15)  # Rate limiting
 
         logger.info(f"Price fetch complete: {len(results)} prices found for {len(token_mints)} tokens")
         return results
