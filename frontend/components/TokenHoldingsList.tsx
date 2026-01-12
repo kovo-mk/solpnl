@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, ExternalLink, ChevronDown, ChevronUp, ShieldCheck, ShieldOff } from 'lucide-react';
+import { Search, ExternalLink, ChevronDown, ChevronUp, ShieldCheck, ShieldOff, EyeOff, Eye } from 'lucide-react';
 import { type TokenBalance, type Transaction, api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -11,23 +11,81 @@ interface TokenHoldingsListProps {
   onTokenVerificationChange?: () => void;
 }
 
+type TabType = 'all' | 'verified' | 'hidden';
+
 export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerificationChange }: TokenHoldingsListProps) {
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<TabType>('all');
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<Record<string, Transaction[]>>({});
   const [loadingTx, setLoadingTx] = useState<string | null>(null);
   const [togglingVerification, setTogglingVerification] = useState<string | null>(null);
+  const [togglingHidden, setTogglingHidden] = useState<string | null>(null);
   const [localVerification, setLocalVerification] = useState<Record<string, boolean>>({});
+  const [localHidden, setLocalHidden] = useState<Record<string, boolean>>({});
 
-  // Filter tokens by search
+  // Get verification/hidden status (local state takes precedence)
+  const isTokenVerified = (token: TokenBalance) => {
+    if (localVerification[token.mint] !== undefined) {
+      return localVerification[token.mint];
+    }
+    return token.is_verified;
+  };
+
+  const isTokenHidden = (token: TokenBalance) => {
+    if (localHidden[token.mint] !== undefined) {
+      return localHidden[token.mint];
+    }
+    return token.is_hidden;
+  };
+
+  // Filter tokens by search and tab
   const filteredTokens = tokens.filter((token) => {
     const query = search.toLowerCase();
-    return (
+    const matchesSearch =
       token.symbol.toLowerCase().includes(query) ||
       token.name.toLowerCase().includes(query) ||
-      token.mint.toLowerCase().includes(query)
-    );
+      token.mint.toLowerCase().includes(query);
+
+    if (!matchesSearch) return false;
+
+    const hidden = isTokenHidden(token);
+    const verified = isTokenVerified(token);
+
+    switch (activeTab) {
+      case 'verified':
+        return verified && !hidden;
+      case 'hidden':
+        return hidden;
+      case 'all':
+      default:
+        return !hidden;
+    }
   });
+
+  // Sort tokens: verified first, then by value
+  const sortedTokens = [...filteredTokens].sort((a, b) => {
+    // SOL always first
+    if (a.mint === 'So11111111111111111111111111111111111111112') return -1;
+    if (b.mint === 'So11111111111111111111111111111111111111112') return 1;
+
+    const aVerified = isTokenVerified(a);
+    const bVerified = isTokenVerified(b);
+
+    // Verified tokens first
+    if (aVerified && !bVerified) return -1;
+    if (!aVerified && bVerified) return 1;
+
+    // Then by value
+    const aValue = a.value_usd || 0;
+    const bValue = b.value_usd || 0;
+    return bValue - aValue;
+  });
+
+  // Count tokens by category
+  const verifiedCount = tokens.filter(t => isTokenVerified(t) && !isTokenHidden(t)).length;
+  const hiddenCount = tokens.filter(t => isTokenHidden(t)).length;
+  const allCount = tokens.filter(t => !isTokenHidden(t)).length;
 
   // Open DexScreener
   const openDexScreener = (mint: string) => {
@@ -55,12 +113,26 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
     }
   };
 
-  // Get verification status (local state takes precedence)
-  const isTokenVerified = (token: TokenBalance) => {
-    if (localVerification[token.mint] !== undefined) {
-      return localVerification[token.mint];
+  // Toggle token hidden
+  const handleToggleHidden = async (mint: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Don't allow hiding SOL
+    if (mint === 'So11111111111111111111111111111111111111112') return;
+
+    setTogglingHidden(mint);
+    try {
+      const result = await api.toggleTokenHidden(mint);
+      setLocalHidden((prev) => ({ ...prev, [mint]: result.is_hidden }));
+      setLocalVerification((prev) => ({ ...prev, [mint]: result.is_verified }));
+      // Refresh balances to update wallet value
+      if (onTokenVerificationChange) {
+        onTokenVerificationChange();
+      }
+    } catch (err) {
+      console.error('Failed to toggle hidden:', err);
+    } finally {
+      setTogglingHidden(null);
     }
-    return token.is_verified;
   };
 
   // Fetch transactions for a token
@@ -108,12 +180,52 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
 
   return (
     <div className="bg-gray-800/50 border border-gray-700 rounded-2xl overflow-hidden">
-      {/* Header with search */}
+      {/* Header with tabs and search */}
       <div className="p-4 border-b border-gray-700">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-lg font-semibold">Current Holdings</h3>
-          <span className="text-sm text-gray-400">{filteredTokens.length} tokens</span>
+          <span className="text-sm text-gray-400">{sortedTokens.length} tokens</span>
         </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => setActiveTab('all')}
+            className={cn(
+              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+              activeTab === 'all'
+                ? 'bg-sol-purple text-white'
+                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+            )}
+          >
+            All ({allCount})
+          </button>
+          <button
+            onClick={() => setActiveTab('verified')}
+            className={cn(
+              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1',
+              activeTab === 'verified'
+                ? 'bg-green-500/30 text-green-400'
+                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+            )}
+          >
+            <ShieldCheck className="w-3 h-3" />
+            Verified ({verifiedCount})
+          </button>
+          <button
+            onClick={() => setActiveTab('hidden')}
+            className={cn(
+              'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1',
+              activeTab === 'hidden'
+                ? 'bg-red-500/30 text-red-400'
+                : 'bg-gray-700/50 text-gray-400 hover:bg-gray-700'
+            )}
+          >
+            <EyeOff className="w-3 h-3" />
+            Hidden ({hiddenCount})
+          </button>
+        </div>
+
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
           <input
@@ -128,13 +240,13 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
 
       {/* Token list */}
       <div className="max-h-[500px] overflow-y-auto">
-        {filteredTokens.length === 0 ? (
+        {sortedTokens.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            {search ? 'No tokens match your search' : 'No tokens found'}
+            {search ? 'No tokens match your search' : activeTab === 'hidden' ? 'No hidden tokens' : activeTab === 'verified' ? 'No verified tokens' : 'No tokens found'}
           </div>
         ) : (
           <div className="divide-y divide-gray-700/50">
-            {filteredTokens.map((token) => (
+            {sortedTokens.map((token) => (
               <div key={token.mint} className="hover:bg-gray-700/30 transition-colors">
                 {/* Token row */}
                 <div className="p-4 flex items-center gap-4">
@@ -197,6 +309,30 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
                       <ShieldCheck className="w-4 h-4" />
                     ) : (
                       <ShieldOff className="w-4 h-4" />
+                    )}
+                  </button>
+
+                  {/* Hide toggle */}
+                  <button
+                    type="button"
+                    onClick={(e) => handleToggleHidden(token.mint, e)}
+                    disabled={togglingHidden === token.mint || token.mint === 'So11111111111111111111111111111111111111112'}
+                    className={cn(
+                      'p-2 rounded-lg transition-colors',
+                      isTokenHidden(token)
+                        ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+                        : 'bg-gray-700/50 hover:bg-gray-700 text-gray-500',
+                      token.mint === 'So11111111111111111111111111111111111111112' && 'cursor-default',
+                      togglingHidden === token.mint && 'opacity-50'
+                    )}
+                    title={isTokenHidden(token) ? 'Hidden (click to unhide)' : 'Click to hide (scam airdrop)'}
+                  >
+                    {togglingHidden === token.mint ? (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : isTokenHidden(token) ? (
+                      <Eye className="w-4 h-4" />
+                    ) : (
+                      <EyeOff className="w-4 h-4" />
                     )}
                   </button>
 

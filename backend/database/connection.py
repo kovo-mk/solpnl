@@ -40,6 +40,11 @@ def run_migrations():
                 conn.execute(text("ALTER TABLE tokens ADD COLUMN is_verified BOOLEAN DEFAULT 0"))
                 conn.commit()
                 logger.info("is_verified column added successfully")
+            if "is_hidden" not in columns:
+                logger.info("Adding is_hidden column to tokens table...")
+                conn.execute(text("ALTER TABLE tokens ADD COLUMN is_hidden BOOLEAN DEFAULT 0"))
+                conn.commit()
+                logger.info("is_hidden column added successfully")
         else:
             # PostgreSQL
             result = conn.execute(text("""
@@ -51,6 +56,16 @@ def run_migrations():
                 conn.execute(text("ALTER TABLE tokens ADD COLUMN is_verified BOOLEAN DEFAULT FALSE"))
                 conn.commit()
                 logger.info("is_verified column added successfully")
+
+            result = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'tokens' AND column_name = 'is_hidden'
+            """))
+            if result.fetchone() is None:
+                logger.info("Adding is_hidden column to tokens table...")
+                conn.execute(text("ALTER TABLE tokens ADD COLUMN is_hidden BOOLEAN DEFAULT FALSE"))
+                conn.commit()
+                logger.info("is_hidden column added successfully")
 
 
 def init_db():

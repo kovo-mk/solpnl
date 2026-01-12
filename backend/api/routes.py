@@ -479,7 +479,8 @@ async def get_wallet_balances(address: str, db: Session = Depends(get_db)):
         "balance": sol_balance,
         "price_usd": sol_price,
         "value_usd": sol_value_usd,
-        "is_verified": True  # SOL is always verified
+        "is_verified": True,  # SOL is always verified
+        "is_hidden": False  # SOL is never hidden
     }
     tokens_with_value.append(sol_token)
     verified_token_value_usd += sol_value_usd
@@ -497,6 +498,7 @@ async def get_wallet_balances(address: str, db: Session = Depends(get_db)):
             token_name = metadata.get("name", "Unknown") if metadata else "Unknown"
             token_logo = metadata.get("logo_url") if metadata else None
             is_verified = False
+            is_hidden = False
 
             # Create token in DB so user can verify it later
             token = Token(
@@ -504,7 +506,8 @@ async def get_wallet_balances(address: str, db: Session = Depends(get_db)):
                 symbol=token_symbol,
                 name=token_name,
                 logo_url=token_logo,
-                is_verified=False
+                is_verified=False,
+                is_hidden=False
             )
             db.add(token)
             db.commit()
@@ -514,6 +517,7 @@ async def get_wallet_balances(address: str, db: Session = Depends(get_db)):
             token_name = token.name or "Unknown"
             token_logo = token.logo_url
             is_verified = token.is_verified or False
+            is_hidden = token.is_hidden or False
 
         # Check for known stablecoins (auto-verify)
         STABLECOIN_MINTS = {
@@ -548,7 +552,8 @@ async def get_wallet_balances(address: str, db: Session = Depends(get_db)):
             "balance": balance,
             "price_usd": price_usd,
             "value_usd": value_usd,
-            "is_verified": is_verified
+            "is_verified": is_verified,
+            "is_hidden": is_hidden
         })
 
     # Sort by value (highest first), but keep SOL at the top
@@ -584,6 +589,29 @@ async def toggle_token_verification(mint: str, db: Session = Depends(get_db)):
     return {
         "mint": token.address,
         "symbol": token.symbol,
+        "is_verified": token.is_verified
+    }
+
+
+@router.patch("/tokens/{mint}/hide")
+async def toggle_token_hidden(mint: str, db: Session = Depends(get_db)):
+    """Toggle hidden status of a token (for scam airdrops)."""
+    token = db.query(Token).filter(Token.address == mint).first()
+    if not token:
+        raise HTTPException(status_code=404, detail="Token not found")
+
+    # Toggle hidden
+    token.is_hidden = not token.is_hidden
+    # If hiding, also unverify
+    if token.is_hidden:
+        token.is_verified = False
+    db.commit()
+    db.refresh(token)
+
+    return {
+        "mint": token.address,
+        "symbol": token.symbol,
+        "is_hidden": token.is_hidden,
         "is_verified": token.is_verified
     }
 

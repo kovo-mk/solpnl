@@ -49,6 +49,9 @@ class Token(Base):
     # User-verified token (contributes to wallet value)
     is_verified = Column(Boolean, default=False)
 
+    # Hidden tokens (scam airdrops, etc.)
+    is_hidden = Column(Boolean, default=False)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

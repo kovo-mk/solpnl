@@ -1,6 +1,7 @@
 'use client';
 
-import { TokenPnL } from '@/lib/api';
+import { useState } from 'react';
+import { TokenPnL, api } from '@/lib/api';
 import {
   formatUSD,
   formatSOL,
@@ -10,16 +11,49 @@ import {
   timeAgo,
   cn,
 } from '@/lib/utils';
-import { TrendingUp, TrendingDown, ExternalLink } from 'lucide-react';
+import { TrendingUp, TrendingDown, ExternalLink, ShieldCheck, ShieldOff, EyeOff, Eye } from 'lucide-react';
 
 interface TokenPnLCardProps {
   token: TokenPnL;
+  onTokenChange?: () => void;
 }
 
-export default function TokenPnLCard({ token }: TokenPnLCardProps) {
+export default function TokenPnLCard({ token, onTokenChange }: TokenPnLCardProps) {
+  const [isVerified, setIsVerified] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
+  const [togglingVerification, setTogglingVerification] = useState(false);
+  const [togglingHidden, setTogglingHidden] = useState(false);
+
   const hasHoldings = token.current_balance > 0;
   const totalPnL = (token.unrealized_pnl_usd || 0) + token.realized_pnl_usd;
   const isProfit = totalPnL >= 0;
+
+  const handleToggleVerification = async () => {
+    setTogglingVerification(true);
+    try {
+      const result = await api.toggleTokenVerification(token.token_address);
+      setIsVerified(result.is_verified);
+      if (onTokenChange) onTokenChange();
+    } catch (err) {
+      console.error('Failed to toggle verification:', err);
+    } finally {
+      setTogglingVerification(false);
+    }
+  };
+
+  const handleToggleHidden = async () => {
+    setTogglingHidden(true);
+    try {
+      const result = await api.toggleTokenHidden(token.token_address);
+      setIsHidden(result.is_hidden);
+      setIsVerified(result.is_verified);
+      if (onTokenChange) onTokenChange();
+    } catch (err) {
+      console.error('Failed to toggle hidden:', err);
+    } finally {
+      setTogglingHidden(false);
+    }
+  };
 
   return (
     <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 hover:border-gray-600 transition-colors">
@@ -182,6 +216,50 @@ export default function TokenPnLCard({ token }: TokenPnLCardProps) {
           <ExternalLink className="w-3 h-3" />
           Chart
         </a>
+      </div>
+
+      {/* Verify/Hide buttons */}
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={handleToggleVerification}
+          disabled={togglingVerification}
+          className={cn(
+            'flex-1 px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-1',
+            isVerified
+              ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400'
+              : 'bg-gray-700/50 hover:bg-gray-700 text-gray-400'
+          )}
+        >
+          {togglingVerification ? (
+            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          ) : isVerified ? (
+            <ShieldCheck className="w-3 h-3" />
+          ) : (
+            <ShieldOff className="w-3 h-3" />
+          )}
+          {isVerified ? 'Verified' : 'Verify'}
+        </button>
+        <button
+          type="button"
+          onClick={handleToggleHidden}
+          disabled={togglingHidden}
+          className={cn(
+            'flex-1 px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-1',
+            isHidden
+              ? 'bg-red-500/20 hover:bg-red-500/30 text-red-400'
+              : 'bg-gray-700/50 hover:bg-gray-700 text-gray-400'
+          )}
+        >
+          {togglingHidden ? (
+            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          ) : isHidden ? (
+            <Eye className="w-3 h-3" />
+          ) : (
+            <EyeOff className="w-3 h-3" />
+          )}
+          {isHidden ? 'Unhide' : 'Hide'}
+        </button>
       </div>
     </div>
   );

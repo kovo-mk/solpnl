@@ -100,6 +100,7 @@ export interface TokenBalance {
   price_usd: number | null;
   value_usd: number | null;
   is_verified: boolean;
+  is_hidden: boolean;
 }
 
 export interface WalletBalances {
@@ -210,6 +211,11 @@ class ApiClient {
   // Token verification toggle
   async toggleTokenVerification(mint: string): Promise<{ mint: string; symbol: string; is_verified: boolean }> {
     return this.request(`/tokens/${mint}/verify`, { method: 'PATCH' });
+  }
+
+  // Token hide toggle (for scam airdrops)
+  async toggleTokenHidden(mint: string): Promise<{ mint: string; symbol: string; is_hidden: boolean; is_verified: boolean }> {
+    return this.request(`/tokens/${mint}/hide`, { method: 'PATCH' });
   }
 }
 
