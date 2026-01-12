@@ -1,4 +1,4 @@
-"""Price fetching service using Jupiter and other APIs."""
+"""Price fetching service using Jupiter, GeckoTerminal and other APIs."""
 import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
@@ -11,6 +11,8 @@ class PriceService:
 
     # Jupiter Lite API (free, no API key required until Jan 2026)
     JUPITER_LITE_URL = "https://lite-api.jup.ag/price/v3"
+    # GeckoTerminal API (free, great for pump.fun and new tokens)
+    GECKOTERMINAL_URL = "https://api.geckoterminal.com/api/v2/networks/solana/tokens"
     # Fallback to DexScreener
     DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/tokens"
 
@@ -103,6 +105,21 @@ class PriceService:
         except Exception as e:
             logger.warning(f"Jupiter Lite price error for {token_mint[:8]}...: {e}")
 
+        # Try GeckoTerminal (great for pump.fun tokens)
+        try:
+            url = f"{self.GECKOTERMINAL_URL}/{token_mint}"
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        token_data = data.get("data", {}).get("attributes", {})
+                        price = token_data.get("price_usd")
+                        if price:
+                            self._token_price_cache[token_mint] = (float(price), datetime.utcnow())
+                            return float(price)
+        except Exception as e:
+            logger.warning(f"GeckoTerminal price error for {token_mint[:8]}...: {e}")
+
         # Fallback to DexScreener
         try:
             url = f"{self.DEXSCREENER_URL}/{token_mint}"
@@ -159,6 +176,56 @@ class PriceService:
 
         return results
 
+    async def _fetch_geckoterminal_single(self, mint: str, session: aiohttp.ClientSession) -> Optional[float]:
+        """Fetch price for a single token from GeckoTerminal (great for pump.fun tokens)."""
+        try:
+            url = f"{self.GECKOTERMINAL_URL}/{mint}"
+            timeout = aiohttp.ClientTimeout(total=8)
+
+            async with session.get(url, timeout=timeout) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    token_data = data.get("data", {}).get("attributes", {})
+                    price = token_data.get("price_usd")
+                    if price:
+                        logger.debug(f"GeckoTerminal price for {mint[:8]}...: ${price}")
+                        return float(price)
+        except Exception as e:
+            logger.warning(f"GeckoTerminal error for {mint[:8]}...: {e}")
+
+        return None
+
+    async def _fetch_geckoterminal_batch(self, mints: List[str], session: aiohttp.ClientSession) -> Dict[str, float]:
+        """Fetch prices for multiple tokens from GeckoTerminal (up to 30 per request)."""
+        results = {}
+        if not mints:
+            return results
+
+        try:
+            # GeckoTerminal allows comma-separated addresses
+            addresses = ",".join(mints[:30])  # Limit to 30
+            url = f"{self.GECKOTERMINAL_URL}/multi/{addresses}"
+            timeout = aiohttp.ClientTimeout(total=15)
+
+            async with session.get(url, timeout=timeout) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    tokens = data.get("data", [])
+
+                    for token in tokens:
+                        attrs = token.get("attributes", {})
+                        address = attrs.get("address")
+                        price = attrs.get("price_usd")
+                        if address and price:
+                            results[address] = float(price)
+                            self._token_price_cache[address] = (float(price), datetime.utcnow())
+
+                    logger.debug(f"GeckoTerminal batch: {len(results)}/{len(mints)} prices found")
+        except Exception as e:
+            logger.warning(f"GeckoTerminal batch error: {e}")
+
+        return results
+
     async def _fetch_dexscreener_single(self, mint: str, session: aiohttp.ClientSession) -> Optional[float]:
         """Fetch price for a single token from DexScreener."""
         try:
@@ -186,7 +253,8 @@ class PriceService:
         Get prices for multiple tokens efficiently.
 
         Uses Jupiter Lite API for batch requests (up to 50 tokens at once),
-        then falls back to DexScreener for any missing prices.
+        then GeckoTerminal for pump.fun and new tokens,
+        then falls back to DexScreener for any remaining.
 
         Args:
             token_mints: List of token mint addresses
@@ -212,7 +280,7 @@ class PriceService:
         logger.info(f"Fetching prices for {len(mints_to_fetch)} tokens ({len(token_mints) - len(mints_to_fetch)} cached)")
 
         async with aiohttp.ClientSession() as session:
-            # Try Jupiter Lite API first (batch requests, up to 50 tokens each)
+            # 1. Try Jupiter Lite API first (batch requests, up to 50 tokens each)
             for i in range(0, len(mints_to_fetch), 50):
                 batch = mints_to_fetch[i:i + 50]
                 jupiter_results = await self._fetch_jupiter_batch(batch, session)
@@ -222,15 +290,30 @@ class PriceService:
                 if i + 50 < len(mints_to_fetch):
                     await asyncio.sleep(0.2)
 
-            # Find tokens still missing prices
+            # 2. Try GeckoTerminal for missing prices (great for pump.fun tokens)
             missing_mints = [m for m in mints_to_fetch if m not in results]
 
             if missing_mints:
-                logger.info(f"Fetching {len(missing_mints)} missing prices from DexScreener")
+                logger.info(f"Fetching {len(missing_mints)} missing prices from GeckoTerminal")
+
+                # GeckoTerminal batch (up to 30 tokens)
+                for i in range(0, len(missing_mints), 30):
+                    batch = missing_mints[i:i + 30]
+                    gecko_results = await self._fetch_geckoterminal_batch(batch, session)
+                    results.update(gecko_results)
+
+                    if i + 30 < len(missing_mints):
+                        await asyncio.sleep(0.3)
+
+            # 3. Try DexScreener for any still missing
+            still_missing = [m for m in mints_to_fetch if m not in results]
+
+            if still_missing:
+                logger.info(f"Fetching {len(still_missing)} remaining prices from DexScreener")
 
                 # Limit DexScreener calls to avoid rate limiting
-                MAX_DEXSCREENER_CALLS = 20
-                for mint in missing_mints[:MAX_DEXSCREENER_CALLS]:
+                MAX_DEXSCREENER_CALLS = 15
+                for mint in still_missing[:MAX_DEXSCREENER_CALLS]:
                     price = await self._fetch_dexscreener_single(mint, session)
                     if price:
                         results[mint] = price
