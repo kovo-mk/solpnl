@@ -196,6 +196,21 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
     return '$' + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  const formatPrice = (price: number | null) => {
+    if (price === null) return '-';
+    if (price >= 1) {
+      return '$' + price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    if (price >= 0.01) {
+      return '$' + price.toFixed(4);
+    }
+    if (price >= 0.0001) {
+      return '$' + price.toFixed(6);
+    }
+    // For very small prices, use scientific notation or subscript format
+    return '$' + price.toExponential(2);
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -305,8 +320,19 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
                     <p className="text-xs text-gray-500 truncate">{token.name}</p>
                   </div>
 
-                  {/* Balance */}
-                  <div className="text-right">
+                  {/* Price */}
+                  <div className="text-right min-w-[80px]">
+                    <p className={cn(
+                      'text-sm font-medium',
+                      token.price_usd ? 'text-gray-300' : 'text-gray-500'
+                    )}>
+                      {formatPrice(token.price_usd)}
+                    </p>
+                    <p className="text-xs text-gray-500">price</p>
+                  </div>
+
+                  {/* Balance & Value */}
+                  <div className="text-right min-w-[100px]">
                     <p className="font-medium">{formatBalance(token.balance)}</p>
                     <p className={cn(
                       'text-sm',
