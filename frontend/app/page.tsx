@@ -195,9 +195,9 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pb-20 md:pb-0 transition-colors">
+    <div className="min-h-screen bg-white dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pb-20 md:pb-0 transition-colors">
       {/* Header */}
-      <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm sticky top-0 z-40 transition-colors">
+      <header className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/95 backdrop-blur-sm sticky top-0 z-40 transition-colors">
         <div className="max-w-7xl mx-auto px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center justify-between">
             {/* Left: Logo + Desktop Nav */}
@@ -214,14 +214,14 @@ export default function Home() {
               <nav className="hidden md:flex items-center gap-1">
                 <Link
                   href="/"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-blue-600 dark:text-white bg-blue-50 dark:bg-gray-800"
                 >
                   <Wallet className="w-4 h-4" />
                   Portfolio
                 </Link>
                 <Link
                   href="/pnl"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
                 >
                   <LineChart className="w-4 h-4" />
                   P&L
@@ -241,7 +241,7 @@ export default function Home() {
                 {theme === 'dark' ? (
                   <Sun className="w-4 h-4 text-yellow-500" />
                 ) : (
-                  <Moon className="w-4 h-4 text-gray-600" />
+                  <Moon className="w-4 h-4 text-gray-700" />
                 )}
               </button>
 
@@ -250,7 +250,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors text-gray-900 dark:text-white"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 dark:bg-gray-800 hover:bg-blue-700 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors text-white dark:text-white"
                 >
                   <Plus className="w-4 h-4" />
                   Add Wallet
@@ -261,7 +261,7 @@ export default function Home() {
                   className="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   title="Manage Wallets"
                 >
-                  <Settings className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <Settings className="w-4 h-4 text-gray-700 dark:text-gray-400" />
                 </button>
                 <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
                 <WalletConnectButton />
@@ -277,18 +277,18 @@ export default function Home() {
       </header>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 z-50 safe-area-pb transition-colors">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 z-50 safe-area-pb transition-colors">
         <div className="flex items-center justify-around py-2 px-2">
           <Link
             href="/"
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-sol-purple"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-blue-600 dark:text-sol-purple"
           >
             <Wallet className="w-5 h-5" />
             <span className="text-[10px] font-medium">Portfolio</span>
           </Link>
           <Link
             href="/pnl"
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
           >
             <LineChart className="w-5 h-5" />
             <span className="text-[10px] font-medium">P&L</span>
@@ -296,7 +296,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
           >
             <Plus className="w-5 h-5" />
             <span className="text-[10px] font-medium">Add</span>
@@ -304,7 +304,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setShowWalletManager(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
           >
             <Settings className="w-5 h-5" />
             <span className="text-[10px] font-medium">Manage</span>
@@ -324,7 +324,7 @@ export default function Home() {
                 className={cn(
                   'flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-lg whitespace-nowrap transition-colors text-sm md:text-base',
                   selectedWallet === wallet.address
-                    ? 'bg-sol-purple text-white'
+                    ? 'bg-blue-600 dark:bg-sol-purple text-white'
                     : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
                 )}
                 title={wallet.address}
@@ -347,7 +347,7 @@ export default function Home() {
             <button
               type="button"
               onClick={() => setShowWalletManager(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-100/50 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors ml-2"
+              className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors ml-2"
               title="Manage Wallets"
             >
               <Settings className="w-4 h-4" />
@@ -358,18 +358,18 @@ export default function Home() {
         {/* Empty State */}
         {wallets.length === 0 && !loading && (
           <div className="flex flex-col items-center justify-center py-20">
-            <div className="p-6 bg-gray-100 dark:bg-gray-800/50 rounded-full mb-6">
-              <Wallet className="w-16 h-16 text-gray-400 dark:text-gray-600" />
+            <div className="p-6 bg-blue-50 dark:bg-gray-800/50 rounded-full mb-6">
+              <Wallet className="w-16 h-16 text-blue-400 dark:text-gray-600" />
             </div>
             <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">No wallets tracked</h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-6 text-center max-w-md">
+            <p className="text-gray-600 dark:text-gray-400 mb-6 text-center max-w-md">
               Add your Solana wallet to start tracking your P/L across all tokens
               you&apos;ve traded.
             </p>
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors text-white"
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 dark:bg-sol-purple hover:bg-blue-700 dark:hover:bg-sol-purple/80 rounded-lg font-medium transition-colors text-white"
             >
               <Plus className="w-5 h-5" />
               Add Your First Wallet
@@ -386,7 +386,7 @@ export default function Home() {
 
         {/* Error State */}
         {error && (
-          <div className="mb-6 p-4 bg-red-100 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-xl text-red-600 dark:text-red-400">
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl text-red-600 dark:text-red-400">
             {error}
           </div>
         )}
@@ -396,7 +396,7 @@ export default function Home() {
           <div className="space-y-4 md:space-y-6">
             {/* Actual Wallet Value - Compact on mobile */}
             {balances && (
-              <div className="bg-gradient-to-br from-sol-purple/10 to-sol-green/10 dark:from-sol-purple/20 dark:to-sol-green/20 border border-sol-purple/20 dark:border-sol-purple/30 rounded-xl md:rounded-2xl p-4 md:p-6">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-sol-purple/20 dark:to-sol-green/20 border border-blue-200 dark:border-sol-purple/30 rounded-xl md:rounded-2xl p-4 md:p-6">
                 {/* Header row */}
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -404,7 +404,7 @@ export default function Home() {
                       ${(balances.total_portfolio_value_usd + walletValueAdjustment).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                     {balances.total_token_value_usd !== balances.verified_token_value_usd && (
-                      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">
+                      <p className="text-xs md:text-sm text-gray-600 dark:text-gray-400">
                         (${(balances.total_token_value_usd + balances.sol_value_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} incl. unverified)
                       </p>
                     )}
@@ -412,12 +412,12 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={copyShareLink}
-                    className="flex items-center gap-1 px-2 py-1 bg-gray-200/50 dark:bg-gray-800/50 hover:bg-gray-300 dark:hover:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 bg-white/70 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-700 rounded-lg text-xs text-gray-700 dark:text-gray-300 transition-colors border border-gray-200 dark:border-transparent"
                     title="Copy share link"
                   >
                     {copied ? (
                       <>
-                        <Check className="w-3 h-3 text-green-500 dark:text-green-400" />
+                        <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
                         <span className="hidden sm:inline">Copied!</span>
                       </>
                     ) : (
@@ -431,7 +431,7 @@ export default function Home() {
 
                 {/* Stats row - Horizontal on mobile */}
                 <div className="flex gap-3 md:grid md:grid-cols-2 md:gap-4 overflow-x-auto -mx-1 px-1 md:mx-0 md:px-0">
-                  <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-2.5 md:p-3 flex-shrink-0 min-w-[120px] md:min-w-0">
+                  <div className="bg-white dark:bg-gray-900/50 rounded-lg p-2.5 md:p-3 flex-shrink-0 min-w-[120px] md:min-w-0 border border-gray-200 dark:border-transparent">
                     <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">SOL</p>
                     <p className="text-base md:text-lg font-semibold text-gray-900 dark:text-white">
                       {balances.sol_balance.toFixed(4)}
@@ -440,7 +440,7 @@ export default function Home() {
                       ${balances.sol_value_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
-                  <div className="bg-white/50 dark:bg-gray-900/50 rounded-lg p-2.5 md:p-3 flex-shrink-0 min-w-[120px] md:min-w-0">
+                  <div className="bg-white dark:bg-gray-900/50 rounded-lg p-2.5 md:p-3 flex-shrink-0 min-w-[120px] md:min-w-0 border border-gray-200 dark:border-transparent">
                     <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">Tokens</p>
                     <p className="text-base md:text-lg font-semibold text-gray-900 dark:text-white">
                       {balances.tokens.length}
@@ -473,7 +473,7 @@ export default function Home() {
             <div>
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
                 <span>Token P/L Breakdown</span>
-                <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
+                <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
                   ({portfolio.tokens.length} tokens)
                 </span>
               </h3>
@@ -509,8 +509,8 @@ export default function Home() {
 
       {/* Wallet Manager Modal */}
       {showWalletManager && (
-        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col shadow-xl">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Manage Wallets</h2>
@@ -531,18 +531,18 @@ export default function Home() {
             {/* Wallet List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {wallets.length === 0 ? (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">No wallets tracked yet</p>
+                <p className="text-gray-600 dark:text-gray-400 text-center py-8">No wallets tracked yet</p>
               ) : (
                 wallets.map((wallet) => (
                   <div
                     key={wallet.address}
-                    className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-3"
+                    className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-3 border border-gray-200 dark:border-transparent"
                   >
                     {/* Wallet Info */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-gray-200 dark:bg-gray-700 rounded-lg">
-                          <Wallet className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        <div className="p-2 bg-blue-100 dark:bg-gray-700 rounded-lg">
+                          <Wallet className="w-4 h-4 text-blue-600 dark:text-gray-400" />
                         </div>
                         <div>
                           {editingWallet === wallet.address ? (
@@ -551,7 +551,7 @@ export default function Home() {
                               value={editLabel}
                               onChange={(e) => setEditLabel(e.target.value)}
                               placeholder="Enter label..."
-                              className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-sol-purple text-gray-900 dark:text-white"
+                              className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500 dark:focus:border-sol-purple text-gray-900 dark:text-white"
                               autoFocus
                             />
                           ) : (
@@ -574,7 +574,7 @@ export default function Home() {
                             <button
                               type="button"
                               onClick={() => handleUpdateWalletLabel(wallet.address)}
-                              className="px-3 py-1 bg-sol-purple hover:bg-sol-purple/80 rounded-lg text-sm transition-colors text-white"
+                              className="px-3 py-1 bg-blue-600 dark:bg-sol-purple hover:bg-blue-700 dark:hover:bg-sol-purple/80 rounded-lg text-sm transition-colors text-white"
                             >
                               Save
                             </button>
@@ -591,7 +591,7 @@ export default function Home() {
                           </>
                         ) : deletingWallet === wallet.address ? (
                           <>
-                            <span className="text-sm text-red-500 dark:text-red-400 mr-2">Delete?</span>
+                            <span className="text-sm text-red-600 dark:text-red-400 mr-2">Delete?</span>
                             <button
                               type="button"
                               onClick={() => handleDeleteWallet(wallet.address)}
@@ -615,7 +615,7 @@ export default function Home() {
                               className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
                               title="Edit label"
                             >
-                              <Edit3 className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                              <Edit3 className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                             </button>
                             <button
                               type="button"
@@ -631,8 +631,8 @@ export default function Home() {
                     </div>
 
                     {/* Full Address (copyable) */}
-                    <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-900/50 rounded-lg px-3 py-2">
-                      <code className="text-xs text-gray-500 dark:text-gray-400 flex-1 truncate">
+                    <div className="flex items-center gap-2 bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-transparent rounded-lg px-3 py-2">
+                      <code className="text-xs text-gray-600 dark:text-gray-400 flex-1 truncate">
                         {wallet.address}
                       </code>
                       <button
@@ -640,7 +640,7 @@ export default function Home() {
                         onClick={async () => {
                           await navigator.clipboard.writeText(wallet.address);
                         }}
-                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                         title="Copy address"
                       >
                         <Copy className="w-3 h-3 text-gray-500" />
@@ -666,7 +666,7 @@ export default function Home() {
                   setShowWalletManager(false);
                   setShowAddModal(true);
                 }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors text-gray-900 dark:text-white"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 dark:bg-gray-800 hover:bg-blue-700 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors text-white dark:text-white"
               >
                 <Plus className="w-4 h-4" />
                 Add New Wallet
