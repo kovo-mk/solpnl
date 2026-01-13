@@ -506,24 +506,42 @@ async def get_wallet_portfolio(address: str, db: Session = Depends(get_db)):
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not found")
 
-    # Get all holdings
+    # Get all holdings from transaction history
     holdings = db.query(WalletTokenHolding).filter(
         WalletTokenHolding.wallet_id == wallet.id
     ).all()
 
-    # Get current prices
+    # Get current prices for tracked tokens
     token_mints = []
     for holding in holdings:
         token = db.query(Token).filter(Token.id == holding.token_id).first()
         if token:
             token_mints.append(token.address)
 
+    # Fetch actual on-chain balances (source of truth for current holdings)
+    actual_balances = {}
+    try:
+        balance_data = await helius_service.get_wallet_balances(address)
+        for token_balance in balance_data.get("tokens", []):
+            mint = token_balance.get("mint")
+            amount = token_balance.get("amount", 0)
+            if mint and amount > 0:
+                actual_balances[mint] = amount
+                # Also add to token_mints if not already tracked
+                if mint not in token_mints:
+                    token_mints.append(mint)
+    except Exception as e:
+        logger.warning(f"Failed to fetch on-chain balances for {address}: {e}")
+        # Fall back to transaction-calculated balances
+
     prices = await price_service.get_multiple_token_prices(token_mints)
     sol_price = await price_service.get_sol_price()
 
-    # Calculate P/L using the calculator
+    # Calculate P/L using the calculator with actual balances
     calculator = PnLCalculator(db)
-    portfolio = await calculator.get_portfolio_pnl(wallet.id, prices, sol_price)
+    portfolio = await calculator.get_portfolio_pnl(
+        wallet.id, prices, sol_price, actual_balances=actual_balances
+    )
 
     return PortfolioResponse(
         wallet_address=wallet.address,

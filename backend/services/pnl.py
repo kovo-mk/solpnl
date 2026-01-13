@@ -228,7 +228,8 @@ class PnLCalculator:
         self,
         wallet_id: int,
         current_prices: Dict[str, float],  # token_mint -> price_usd
-        sol_price_usd: float
+        sol_price_usd: float,
+        actual_balances: Optional[Dict[str, float]] = None  # token_mint -> actual on-chain balance
     ) -> PortfolioSummary:
         """
         Get complete P/L summary for a wallet.
@@ -237,6 +238,8 @@ class PnLCalculator:
             wallet_id: Wallet database ID
             current_prices: Current token prices in USD
             sol_price_usd: Current SOL price in USD
+            actual_balances: Optional dict of actual on-chain balances (token_mint -> amount).
+                           If provided, uses these instead of transaction-calculated balances.
 
         Returns:
             PortfolioSummary with all token P/L data
@@ -260,14 +263,20 @@ class PnLCalculator:
 
             current_price = current_prices.get(token.address)
 
+            # Use actual on-chain balance if provided, otherwise use transaction-calculated balance
+            if actual_balances is not None and token.address in actual_balances:
+                current_balance = actual_balances[token.address]
+            else:
+                current_balance = holding.current_balance
+
             # Calculate unrealized P/L
             current_value = None
             unrealized_pnl_sol = 0.0
             unrealized_pnl_usd = None
             unrealized_pnl_percent = None
 
-            if current_price and holding.current_balance > 0:
-                current_value = holding.current_balance * current_price
+            if current_price and current_balance > 0:
+                current_value = current_balance * current_price
                 total_value += current_value
 
                 # Unrealized = current value - cost basis
@@ -277,7 +286,7 @@ class PnLCalculator:
 
                 # Calculate in SOL terms
                 current_price_sol = current_price / sol_price_usd if sol_price_usd > 0 else 0
-                unrealized_pnl_sol = (holding.current_balance * current_price_sol) - holding.total_cost_sol
+                unrealized_pnl_sol = (current_balance * current_price_sol) - holding.total_cost_sol
 
                 # Percent change
                 if cost_basis_usd > 0:
@@ -292,7 +301,7 @@ class PnLCalculator:
                 token_symbol=token.symbol or "???",
                 token_name=token.name or "Unknown",
                 token_logo=token.logo_url,
-                current_balance=holding.current_balance,
+                current_balance=current_balance,  # Use actual balance
                 avg_buy_price_sol=holding.avg_buy_price,
                 total_cost_sol=holding.total_cost_sol,
                 current_price_usd=current_price,
