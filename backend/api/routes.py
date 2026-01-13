@@ -77,10 +77,11 @@ async def get_auth_nonce(pubkey: str, db: Session = Depends(get_db)):
 
     # Generate nonce
     nonce = user.generate_nonce()
-    db.commit()
 
-    # Create message to sign
-    message = f"Sign this message to authenticate with SolPnL.\n\nNonce: {nonce}\nTimestamp: {datetime.utcnow().isoformat()}"
+    # Create message to sign and store it
+    message = f"Sign this message to authenticate with SolPnL.\n\nNonce: {nonce}"
+    user.auth_message = message
+    db.commit()
 
     return {
         "nonce": nonce,
@@ -109,30 +110,31 @@ async def verify_signature(
     if user.nonce_expires_at and datetime.now(timezone.utc) > user.nonce_expires_at:
         raise HTTPException(status_code=400, detail="Nonce expired")
 
+    # Check that we have the stored message
+    if not user.auth_message:
+        raise HTTPException(status_code=400, detail="No auth message found. Request a new nonce.")
+
     # Verify signature
     try:
         # Decode pubkey and signature
         pubkey_bytes = base58.b58decode(pubkey)
         signature_bytes = base58.b58decode(signature)
 
-        # Reconstruct the message
-        message = f"Sign this message to authenticate with SolPnL.\n\nNonce: {nonce}\nTimestamp: {datetime.utcnow().isoformat()}"
+        # Get the exact message that was signed
+        message_bytes = user.auth_message.encode('utf-8')
 
-        # For Solana wallet signatures, we need to verify against the original message
-        # The message format might vary slightly, so we'll trust the signature if it's valid ed25519
+        # Verify the signature using ed25519
         verify_key = VerifyKey(pubkey_bytes)
+        verify_key.verify(message_bytes, signature_bytes)
 
-        # Try to verify - if this fails, signature is invalid
-        # Note: The actual message signed includes the nonce, which we verify matches
-        # Since we generated the nonce, if the signature is valid for this pubkey, it's authentic
-        # In production, you'd want to verify the exact message bytes
+        logger.info(f"Signature verified for {pubkey}")
 
     except BadSignatureError:
+        logger.warning(f"Invalid signature for {pubkey}")
         raise HTTPException(status_code=400, detail="Invalid signature")
     except Exception as e:
-        logger.warning(f"Signature verification error: {e}")
-        # For now, we'll be lenient during development
-        # In production, you'd want strict verification
+        logger.warning(f"Signature verification error for {pubkey}: {e}")
+        raise HTTPException(status_code=400, detail=f"Signature verification failed: {str(e)}")
 
     # Generate session
     session_token = user.generate_session()

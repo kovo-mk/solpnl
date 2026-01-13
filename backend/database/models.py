@@ -20,6 +20,7 @@ class User(Base):
 
     # Auth nonce for signature verification (one-time use)
     auth_nonce = Column(String(255), nullable=True)
+    auth_message = Column(Text, nullable=True)  # Store exact message to be signed
     nonce_expires_at = Column(DateTime(timezone=True), nullable=True)
 
     # Session management
