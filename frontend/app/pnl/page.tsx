@@ -14,10 +14,13 @@ import {
   LineChart,
   Plus,
   BarChart3,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { api, type Portfolio, type TokenPnL, type Wallet } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import AddWalletModal from '@/components/AddWalletModal';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type SortField = 'last_trade' | 'unrealized' | 'realized' | 'total_pnl' | 'balance' | 'bought' | 'sold' | 'position';
 type SortDirection = 'asc' | 'desc';
@@ -28,6 +31,7 @@ type TimePeriod = 'all' | '24h' | '7d' | '30d';
 const shortenAddress = (address: string) => `${address.slice(0, 4)}...${address.slice(-4)}`;
 
 export default function PnLDashboard() {
+  const { theme, toggleTheme } = useTheme();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -226,9 +230,9 @@ export default function PnLDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black pb-20 md:pb-0">
+    <div className="min-h-screen bg-gray-50 dark:bg-gradient-to-b dark:from-gray-900 dark:to-black pb-20 md:pb-0 transition-colors">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm sticky top-0 z-40">
+      <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm sticky top-0 z-40 transition-colors">
         <div className="max-w-7xl mx-auto px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center justify-between">
             {/* Left: Logo + Desktop Nav */}
@@ -238,21 +242,21 @@ export default function PnLDashboard() {
                 <div className="p-1.5 bg-gradient-to-br from-sol-purple to-sol-green rounded-lg">
                   <BarChart3 className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-lg font-bold">SolPnL</span>
+                <span className="text-lg font-bold text-gray-900 dark:text-white">SolPnL</span>
               </Link>
 
               {/* Desktop Nav Tabs */}
               <nav className="hidden md:flex items-center gap-1">
                 <Link
                   href="/"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <WalletIcon className="w-4 h-4" />
                   Portfolio
                 </Link>
                 <Link
                   href="/pnl"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-gray-800"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-800"
                 >
                   <LineChart className="w-4 h-4" />
                   P&L
@@ -262,12 +266,26 @@ export default function PnLDashboard() {
 
             {/* Right: Actions */}
             <div className="flex items-center gap-2">
+              {/* Theme Toggle */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-yellow-500" />
+                ) : (
+                  <Moon className="w-4 h-4 text-gray-600" />
+                )}
+              </button>
+
               {/* Wallet selector */}
               {wallets.length > 0 && (
                 <select
                   value={selectedWallet || ''}
                   onChange={(e) => setSelectedWallet(e.target.value)}
-                  className="px-2 md:px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs md:text-sm max-w-[100px] sm:max-w-[140px] md:max-w-[180px]"
+                  className="px-2 md:px-3 py-1.5 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-xs md:text-sm max-w-[100px] sm:max-w-[140px] md:max-w-[180px] text-gray-900 dark:text-white"
                   title="Select wallet"
                   aria-label="Select wallet"
                 >
@@ -284,16 +302,16 @@ export default function PnLDashboard() {
                 <button
                   type="button"
                   onClick={() => setShowWalletManager(true)}
-                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   title="Manage Wallets"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Settings className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                 </button>
                 <button
                   type="button"
                   onClick={handleSync}
                   disabled={syncing || !selectedWallet}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm text-white"
                 >
                   <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} />
                   {syncing ? 'Syncing...' : 'Sync'}
@@ -308,7 +326,7 @@ export default function PnLDashboard() {
                 className="md:hidden p-2 bg-sol-purple hover:bg-sol-purple/80 rounded-lg transition-colors disabled:opacity-50"
                 title="Sync wallet"
               >
-                <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} />
+                <RefreshCw className={cn('w-4 h-4 text-white', syncing && 'animate-spin')} />
               </button>
             </div>
           </div>
@@ -316,11 +334,11 @@ export default function PnLDashboard() {
       </header>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 z-50 transition-colors">
         <div className="flex items-center justify-around py-2 px-2">
           <Link
             href="/"
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
           >
             <WalletIcon className="w-5 h-5" />
             <span className="text-[10px] font-medium">Portfolio</span>
@@ -335,7 +353,7 @@ export default function PnLDashboard() {
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
           >
             <Plus className="w-5 h-5" />
             <span className="text-[10px] font-medium">Add</span>
@@ -343,7 +361,7 @@ export default function PnLDashboard() {
           <button
             type="button"
             onClick={() => setShowWalletManager(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
           >
             <Settings className="w-5 h-5" />
             <span className="text-[10px] font-medium">Settings</span>
@@ -353,24 +371,24 @@ export default function PnLDashboard() {
 
       {/* Wallet Manager Modal */}
       {showWalletManager && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Manage Wallets</h2>
+        <div className="fixed inset-0 bg-black/30 dark:bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl max-w-lg w-full max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Manage Wallets</h2>
               <button
                 type="button"
                 onClick={() => {
                   setShowWalletManager(false);
                   setEditingWallet(null);
                 }}
-                className="p-2 hover:bg-gray-800 rounded-lg"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-500 dark:text-gray-400"
               >
                 ✕
               </button>
             </div>
             <div className="p-4 space-y-3 overflow-y-auto max-h-[60vh]">
               {wallets.map((wallet) => (
-                <div key={wallet.address} className="bg-gray-800/50 border border-gray-700 rounded-lg p-3">
+                <div key={wallet.address} className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                   {editingWallet === wallet.address ? (
                     <div className="space-y-2">
                       <input
@@ -378,14 +396,14 @@ export default function PnLDashboard() {
                         value={editLabel}
                         onChange={(e) => setEditLabel(e.target.value)}
                         placeholder="Wallet label (optional)"
-                        className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm"
+                        className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white"
                         autoFocus
                       />
                       <div className="flex gap-2">
                         <button
                           type="button"
                           onClick={() => handleUpdateWalletLabel(wallet.address, editLabel)}
-                          className="px-3 py-1 bg-sol-purple hover:bg-sol-purple/80 rounded text-sm"
+                          className="px-3 py-1 bg-sol-purple hover:bg-sol-purple/80 rounded text-sm text-white"
                         >
                           Save
                         </button>
@@ -395,7 +413,7 @@ export default function PnLDashboard() {
                             setEditingWallet(null);
                             setEditLabel('');
                           }}
-                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                          className="px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded text-sm text-gray-700 dark:text-gray-300"
                         >
                           Cancel
                         </button>
@@ -404,9 +422,9 @@ export default function PnLDashboard() {
                   ) : (
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-medium">{wallet.label || 'Unnamed Wallet'}</p>
-                        <p className="text-xs text-gray-400 font-mono">{shortenAddress(wallet.address)}</p>
-                        <p className="text-xs text-gray-500 mt-1">Full: {wallet.address}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{wallet.label || 'Unnamed Wallet'}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">{shortenAddress(wallet.address)}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Full: {wallet.address}</p>
                       </div>
                       <button
                         type="button"
@@ -414,7 +432,7 @@ export default function PnLDashboard() {
                           setEditingWallet(wallet.address);
                           setEditLabel(wallet.label || '');
                         }}
-                        className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                        className="px-3 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded text-sm text-gray-700 dark:text-gray-300"
                       >
                         Edit
                       </button>
@@ -431,8 +449,8 @@ export default function PnLDashboard() {
         {/* Time Period Selector - Mobile optimized */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
           <div className="flex items-center gap-2">
-            <span className="text-xs md:text-sm text-gray-400 hidden sm:inline">Time Period:</span>
-            <div className="flex gap-0.5 md:gap-1 bg-gray-800 rounded-lg p-0.5 md:p-1 flex-1 sm:flex-initial">
+            <span className="text-xs md:text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">Time Period:</span>
+            <div className="flex gap-0.5 md:gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5 md:p-1 flex-1 sm:flex-initial">
               {(['all', '24h', '7d', '30d'] as TimePeriod[]).map((period) => (
                 <button
                   key={period}
@@ -442,7 +460,7 @@ export default function PnLDashboard() {
                     'px-2 md:px-3 py-1.5 md:py-1 text-xs md:text-sm rounded-md transition-colors flex-1 sm:flex-initial',
                     timePeriod === period
                       ? 'bg-sol-purple text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700'
                   )}
                 >
                   {period === 'all' ? 'All' : period.toUpperCase()}
@@ -452,7 +470,7 @@ export default function PnLDashboard() {
           </div>
           {selectedWallet && (
             <p className="text-xs md:text-sm text-gray-500 hidden sm:block">
-              Viewing: <span className="font-mono text-gray-400">{shortenAddress(selectedWallet)}</span>
+              Viewing: <span className="font-mono text-gray-600 dark:text-gray-400">{shortenAddress(selectedWallet)}</span>
             </p>
           )}
         </div>
@@ -466,7 +484,7 @@ export default function PnLDashboard() {
 
         {/* Error State */}
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400">
+          <div className="mb-6 p-4 bg-red-100 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-xl text-red-600 dark:text-red-400">
             {error}
           </div>
         )}
@@ -475,21 +493,21 @@ export default function PnLDashboard() {
         {portfolio && stats && !loading && (
           <div className="space-y-4 md:space-y-6">
             {/* Mobile Summary - Horizontal scroll stats */}
-            <div className="md:hidden bg-gray-800/50 border border-gray-700 rounded-xl p-3">
+            <div className="md:hidden bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-3 transition-colors">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-gray-400 text-xs font-medium">Summary</h3>
-                <span className="text-cyan-400 text-sm font-bold">{stats.winRate.toFixed(0)}% Win</span>
+                <h3 className="text-gray-500 dark:text-gray-400 text-xs font-medium">Summary</h3>
+                <span className="text-cyan-600 dark:text-cyan-400 text-sm font-bold">{stats.winRate.toFixed(0)}% Win</span>
               </div>
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <p className="text-gray-500 text-[10px]">Holdings</p>
-                  <p className="text-sm font-bold">{formatUSD(stats.totalHoldings)}</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">{formatUSD(stats.totalHoldings)}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 text-[10px]">Unrealised</p>
                   <p className={cn(
                     'text-sm font-semibold',
-                    stats.unrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                    stats.unrealizedPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                   )}>
                     {formatUSD(stats.unrealizedPnL, true)}
                   </p>
@@ -498,14 +516,14 @@ export default function PnLDashboard() {
                   <p className="text-gray-500 text-[10px]">Total PnL</p>
                   <p className={cn(
                     'text-sm font-semibold',
-                    stats.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                    stats.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                   )}>
                     {formatUSD(stats.totalPnL, true)}
                   </p>
                 </div>
               </div>
               {/* Mini distribution bar */}
-              <div className="mt-3 h-1.5 bg-gray-700 rounded-full overflow-hidden flex">
+              <div className="mt-3 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden flex">
                 {stats.distribution.map((tier, idx) => (
                   <div
                     key={idx}
@@ -519,20 +537,20 @@ export default function PnLDashboard() {
             {/* Desktop Summary Cards Row */}
             <div className="hidden md:grid md:grid-cols-3 gap-4">
               {/* Summary Card */}
-              <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
-                <h3 className="text-gray-400 text-sm font-medium mb-4">Summary</h3>
+              <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-5 transition-colors">
+                <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-4">Summary</h3>
 
                 <div className="space-y-3">
                   <div>
                     <p className="text-gray-500 text-xs">Holdings</p>
-                    <p className="text-2xl font-bold">{formatUSD(stats.totalHoldings)}</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatUSD(stats.totalHoldings)}</p>
                   </div>
 
                   <div>
                     <p className="text-gray-500 text-xs">Unrealised PnL</p>
                     <p className={cn(
                       'text-lg font-semibold',
-                      stats.unrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                      stats.unrealizedPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                     )}>
                       {formatUSD(stats.unrealizedPnL, true)}
                       <span className="text-sm ml-1">
@@ -545,7 +563,7 @@ export default function PnLDashboard() {
                     <p className="text-gray-500 text-xs">Total PnL</p>
                     <p className={cn(
                       'text-lg font-semibold',
-                      stats.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                      stats.totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                     )}>
                       {formatUSD(stats.totalPnL, true)}
                       <span className="text-sm ml-1">
@@ -557,20 +575,20 @@ export default function PnLDashboard() {
               </div>
 
               {/* Analysis Card */}
-              <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
-                <h3 className="text-gray-400 text-sm font-medium mb-4">Analysis</h3>
+              <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-5 transition-colors">
+                <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-4">Analysis</h3>
 
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-500 text-sm">Win Rate</span>
-                    <span className="text-cyan-400 text-xl font-bold">{stats.winRate.toFixed(2)}%</span>
+                    <span className="text-cyan-600 dark:text-cyan-400 text-xl font-bold">{stats.winRate.toFixed(2)}%</span>
                   </div>
 
                   <div className="flex justify-between">
                     <span className="text-gray-500 text-sm">Realised PnL</span>
                     <span className={cn(
                       'font-semibold',
-                      stats.realizedPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                      stats.realizedPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                     )}>
                       {formatUSD(stats.realizedPnL, true)}
                     </span>
@@ -579,10 +597,10 @@ export default function PnLDashboard() {
                   <div className="flex justify-between">
                     <span className="text-gray-500 text-sm">Txns</span>
                     <span>
-                      <span className="text-white font-semibold">{stats.totalTxns.toLocaleString()}</span>
-                      <span className="text-green-400 ml-1">{stats.buyTxns}</span>
+                      <span className="text-gray-900 dark:text-white font-semibold">{stats.totalTxns.toLocaleString()}</span>
+                      <span className="text-green-600 dark:text-green-400 ml-1">{stats.buyTxns}</span>
                       <span className="text-gray-500"> / </span>
-                      <span className="text-red-400">{stats.sellTxns}</span>
+                      <span className="text-red-600 dark:text-red-400">{stats.sellTxns}</span>
                     </span>
                   </div>
 
@@ -590,7 +608,7 @@ export default function PnLDashboard() {
                     <span className="text-gray-500 text-sm">Avg PnL per Asset</span>
                     <span className={cn(
                       'font-semibold',
-                      stats.avgPnLPerAsset >= 0 ? 'text-green-400' : 'text-red-400'
+                      stats.avgPnLPerAsset >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                     )}>
                       {formatUSD(stats.avgPnLPerAsset, true)}
                     </span>
@@ -598,14 +616,14 @@ export default function PnLDashboard() {
 
                   <div className="flex justify-between">
                     <span className="text-gray-500 text-sm">Avg Buy Value</span>
-                    <span className="text-white font-semibold">{formatUSD(stats.avgBuyValue)}</span>
+                    <span className="text-gray-900 dark:text-white font-semibold">{formatUSD(stats.avgBuyValue)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Distribution Card */}
-              <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
-                <h3 className="text-gray-400 text-sm font-medium mb-4">Distribution</h3>
+              <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-5 transition-colors">
+                <h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-4">Distribution</h3>
 
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs text-gray-500 mb-2">
@@ -617,9 +635,9 @@ export default function PnLDashboard() {
                     <div key={idx} className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <div className={cn('w-2 h-2 rounded-full', tier.color)} />
-                        <span className="text-sm text-gray-300">{tier.label}</span>
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{tier.label}</span>
                       </div>
-                      <span className="text-sm text-gray-400">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
                         {tier.count} ({tier.percent.toFixed(2)}%)
                       </span>
                     </div>
@@ -627,7 +645,7 @@ export default function PnLDashboard() {
                 </div>
 
                 {/* Distribution bar */}
-                <div className="mt-4 h-2 bg-gray-700 rounded-full overflow-hidden flex">
+                <div className="mt-4 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden flex">
                   {stats.distribution.map((tier, idx) => (
                     <div
                       key={idx}
@@ -640,16 +658,16 @@ export default function PnLDashboard() {
             </div>
 
             {/* Tabs and Table */}
-            <div className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden">
+            <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden transition-colors">
               {/* Tabs and Search - Mobile optimized */}
-              <div className="border-b border-gray-700 px-3 md:px-4 py-2 md:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-3">
+              <div className="border-b border-gray-200 dark:border-gray-700 px-3 md:px-4 py-2 md:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-3">
                 <div className="flex gap-2 md:gap-4 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1">
                   <button
                     type="button"
                     onClick={() => setActiveTab('recently_traded')}
                     className={cn(
                       'text-xs md:text-sm font-medium transition-colors whitespace-nowrap',
-                      activeTab === 'recently_traded' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                      activeTab === 'recently_traded' ? 'text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                     )}
                   >
                     Recent
@@ -659,7 +677,7 @@ export default function PnLDashboard() {
                     onClick={() => setActiveTab('live_positions')}
                     className={cn(
                       'text-xs md:text-sm font-medium transition-colors whitespace-nowrap',
-                      activeTab === 'live_positions' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                      activeTab === 'live_positions' ? 'text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                     )}
                   >
                     Live
@@ -669,7 +687,7 @@ export default function PnLDashboard() {
                     onClick={() => setActiveTab('most_profitable')}
                     className={cn(
                       'text-xs md:text-sm font-medium transition-colors whitespace-nowrap',
-                      activeTab === 'most_profitable' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+                      activeTab === 'most_profitable' ? 'text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
                     )}
                   >
                     Top Gains
@@ -684,13 +702,13 @@ export default function PnLDashboard() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search..."
-                    className="pl-8 md:pl-9 pr-3 md:pr-4 py-1.5 md:py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs md:text-sm w-full sm:w-36 md:w-48 focus:outline-none focus:border-sol-purple"
+                    className="pl-8 md:pl-9 pr-3 md:pr-4 py-1.5 md:py-2 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-xs md:text-sm w-full sm:w-36 md:w-48 focus:outline-none focus:border-sol-purple text-gray-900 dark:text-white"
                   />
                 </div>
               </div>
 
               {/* Mobile Token Cards */}
-              <div className="md:hidden divide-y divide-gray-700/30">
+              <div className="md:hidden divide-y divide-gray-200 dark:divide-gray-700/30">
                 {sortedTokens.map((token) => {
                   const totalPnL = (token.unrealized_pnl_usd || 0) + token.realized_pnl_usd;
                   const totalPnLPercent = token.total_buy_sol > 0
@@ -701,27 +719,27 @@ export default function PnLDashboard() {
                     : 0;
 
                   return (
-                    <div key={token.token_address} className="p-3 hover:bg-gray-700/20">
+                    <div key={token.token_address} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-700/20">
                       {/* Token header row */}
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                             {token.token_logo ? (
                               <img src={token.token_logo} alt={token.token_symbol} className="w-full h-full object-cover" />
                             ) : (
-                              <span className="text-[10px] font-bold text-gray-400">
+                              <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400">
                                 {token.token_symbol.slice(0, 2)}
                               </span>
                             )}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-sm truncate">{token.token_symbol}</span>
+                              <span className="font-medium text-sm truncate text-gray-900 dark:text-white">{token.token_symbol}</span>
                               <a
                                 href={`https://dexscreener.com/solana/${token.token_address}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-gray-500 hover:text-gray-300 flex-shrink-0"
+                                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex-shrink-0"
                                 title="View on DexScreener"
                               >
                                 <ExternalLink className="w-3 h-3" />
@@ -733,13 +751,13 @@ export default function PnLDashboard() {
                         <div className="text-right flex-shrink-0">
                           <p className={cn(
                             'text-sm font-semibold',
-                            totalPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                            totalPnL >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                           )}>
                             {formatUSD(totalPnL, true)}
                           </p>
                           <p className={cn(
                             'text-[10px]',
-                            totalPnLPercent >= 0 ? 'text-green-400/70' : 'text-red-400/70'
+                            totalPnLPercent >= 0 ? 'text-green-600/70 dark:text-green-400/70' : 'text-red-600/70 dark:text-red-400/70'
                           )}>
                             {formatPercent(totalPnLPercent, true)}
                           </p>
