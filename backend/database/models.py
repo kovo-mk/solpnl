@@ -1,6 +1,6 @@
 """Database models for SolPnL portfolio tracker."""
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime, ForeignKey,
     Boolean, Text, UniqueConstraint, Index
@@ -36,14 +36,14 @@ class User(Base):
     def generate_nonce(self) -> str:
         """Generate a new auth nonce."""
         self.auth_nonce = secrets.token_urlsafe(32)
-        self.nonce_expires_at = datetime.utcnow() + timedelta(minutes=5)
+        self.nonce_expires_at = datetime.now(timezone.utc) + timedelta(minutes=5)
         return self.auth_nonce
 
     def generate_session(self) -> str:
         """Generate a new session token."""
         self.session_token = secrets.token_urlsafe(64)
-        self.session_expires_at = datetime.utcnow() + timedelta(days=30)
-        self.last_login_at = datetime.utcnow()
+        self.session_expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+        self.last_login_at = datetime.now(timezone.utc)
         # Clear nonce after use
         self.auth_nonce = None
         self.nonce_expires_at = None
@@ -53,7 +53,7 @@ class User(Base):
         """Check if current session is valid."""
         if not self.session_token or not self.session_expires_at:
             return False
-        return datetime.utcnow() < self.session_expires_at
+        return datetime.now(timezone.utc) < self.session_expires_at
 
 
 class TrackedWallet(Base):
