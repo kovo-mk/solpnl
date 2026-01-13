@@ -19,5 +19,9 @@ pydantic-settings==2.1.0
 python-dotenv==1.0.0
 loguru==0.7.2
 
+# Crypto/Auth
+pynacl==1.5.0
+base58==2.1.1
+
 # CORS
 starlette==0.35.1

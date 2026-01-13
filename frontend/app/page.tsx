@@ -11,6 +11,13 @@ import {
   Loader2,
   BarChart3,
   LineChart,
+  Share2,
+  Copy,
+  Check,
+  Settings,
+  Trash2,
+  X,
+  Edit3,
 } from 'lucide-react';
 import { api, type Portfolio, type Wallet as WalletType, type SyncStatus, type WalletBalances } from '@/lib/api';
 import { formatUSD, formatPnL, cn, shortenAddress, timeAgo } from '@/lib/utils';
@@ -18,8 +25,11 @@ import AddWalletModal from '@/components/AddWalletModal';
 import TokenPnLCard from '@/components/TokenPnLCard';
 import PortfolioSummary from '@/components/PortfolioSummary';
 import TokenHoldingsList from '@/components/TokenHoldingsList';
+import WalletConnectButton from '@/components/WalletConnectButton';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Home() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [wallets, setWallets] = useState<WalletType[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
@@ -30,6 +40,12 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [walletValueAdjustment, setWalletValueAdjustment] = useState(0);
   const [verifiedCountAdjustment, setVerifiedCountAdjustment] = useState(0);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showWalletManager, setShowWalletManager] = useState(false);
+  const [editingWallet, setEditingWallet] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [deletingWallet, setDeletingWallet] = useState<string | null>(null);
 
   // Handle optimistic wallet value updates from token verification changes
   const handleTokenVerificationChange = useCallback((mint: string, isVerified: boolean, valueUsd: number | null) => {
@@ -111,10 +127,15 @@ export default function Home() {
     }
   };
 
-  // Initial load
+  // Initial load and refetch when auth changes
   useEffect(() => {
-    fetchWallets();
-  }, []);
+    if (!authLoading) {
+      // Clear current selection when auth changes
+      setSelectedWallet(null);
+      setWallets([]);
+      fetchWallets();
+    }
+  }, [isAuthenticated, authLoading]);
 
   // Fetch portfolio when wallet changes
   useEffect(() => {
@@ -126,6 +147,48 @@ export default function Home() {
     ? portfolio.total_unrealized_pnl_usd + portfolio.total_realized_pnl_usd
     : 0;
   const isProfit = totalPnL >= 0;
+
+  // Copy share link to clipboard
+  const copyShareLink = async () => {
+    if (!selectedWallet) return;
+    const shareUrl = `${window.location.origin}/view/${selectedWallet}`;
+    await navigator.clipboard.writeText(shareUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Delete wallet handler
+  const handleDeleteWallet = async (address: string) => {
+    try {
+      await api.deleteWallet(address);
+      setDeletingWallet(null);
+      // If we deleted the selected wallet, clear selection
+      if (selectedWallet === address) {
+        setSelectedWallet(null);
+      }
+      fetchWallets();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // Update wallet label handler
+  const handleUpdateWalletLabel = async (address: string) => {
+    try {
+      await api.updateWallet(address, { label: editLabel || undefined });
+      setEditingWallet(null);
+      setEditLabel('');
+      fetchWallets();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // Start editing a wallet label
+  const startEditing = (wallet: WalletType) => {
+    setEditingWallet(wallet.address);
+    setEditLabel(wallet.label || '');
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
@@ -154,12 +217,14 @@ export default function Home() {
                 P&L Dashboard
               </Link>
               <button
+                type="button"
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                Add Wallet
+                Track Wallet
               </button>
+              <WalletConnectButton />
             </div>
           </div>
         </div>
@@ -168,9 +233,10 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Wallet Selector */}
         {wallets.length > 0 && (
-          <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+          <div className="flex gap-2 mb-6 overflow-x-auto pb-2 items-center">
             {wallets.map((wallet) => (
               <button
+                type="button"
                 key={wallet.address}
                 onClick={() => setSelectedWallet(wallet.address)}
                 className={cn(
@@ -194,6 +260,15 @@ export default function Home() {
                 </span>
               </button>
             ))}
+            {/* Wallet Manager Button */}
+            <button
+              type="button"
+              onClick={() => setShowWalletManager(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors ml-2"
+              title="Manage Wallets"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           </div>
         )}
 
@@ -209,6 +284,7 @@ export default function Home() {
               you&apos;ve traded.
             </p>
             <button
+              type="button"
               onClick={() => setShowAddModal(true)}
               className="flex items-center gap-2 px-6 py-3 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors"
             >
@@ -240,7 +316,27 @@ export default function Home() {
               <div className="bg-gradient-to-br from-sol-purple/20 to-sol-green/20 border border-sol-purple/30 rounded-2xl p-6 mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-lg font-semibold text-gray-200">Wallet Value</h3>
-                  <span className="text-sm text-gray-400">Verified tokens only</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-400">Verified tokens only</span>
+                    <button
+                      type="button"
+                      onClick={copyShareLink}
+                      className="flex items-center gap-1 px-2 py-1 bg-gray-800/50 hover:bg-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
+                      title="Copy share link"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-3 h-3 text-green-400" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-3 h-3" />
+                          Share
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <p className="text-3xl font-bold text-white mb-2">
                   ${(balances.total_portfolio_value_usd + walletValueAdjustment).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -326,6 +422,175 @@ export default function Home() {
           setShowAddModal(false);
         }}
       />
+
+      {/* Wallet Manager Modal */}
+      {showWalletManager && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-700">
+              <h2 className="text-lg font-semibold">Manage Wallets</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWalletManager(false);
+                  setEditingWallet(null);
+                  setDeletingWallet(null);
+                }}
+                className="p-1 hover:bg-gray-700 rounded-lg transition-colors"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Wallet List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {wallets.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No wallets tracked yet</p>
+              ) : (
+                wallets.map((wallet) => (
+                  <div
+                    key={wallet.address}
+                    className="bg-gray-800 rounded-xl p-4 space-y-3"
+                  >
+                    {/* Wallet Info */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gray-700 rounded-lg">
+                          <Wallet className="w-4 h-4" />
+                        </div>
+                        <div>
+                          {editingWallet === wallet.address ? (
+                            <input
+                              type="text"
+                              value={editLabel}
+                              onChange={(e) => setEditLabel(e.target.value)}
+                              placeholder="Enter label..."
+                              className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-sol-purple"
+                              autoFocus
+                            />
+                          ) : (
+                            <>
+                              <p className="font-medium">
+                                {wallet.label || 'Unnamed Wallet'}
+                              </p>
+                              <p className="text-xs text-gray-400 font-mono">
+                                {shortenAddress(wallet.address)}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2">
+                        {editingWallet === wallet.address ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateWalletLabel(wallet.address)}
+                              className="px-3 py-1 bg-sol-purple hover:bg-sol-purple/80 rounded-lg text-sm transition-colors"
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingWallet(null);
+                                setEditLabel('');
+                              }}
+                              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : deletingWallet === wallet.address ? (
+                          <>
+                            <span className="text-sm text-red-400 mr-2">Delete?</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteWallet(wallet.address)}
+                              className="px-3 py-1 bg-red-500 hover:bg-red-600 rounded-lg text-sm transition-colors"
+                            >
+                              Yes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingWallet(null)}
+                              className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
+                            >
+                              No
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => startEditing(wallet)}
+                              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                              title="Edit label"
+                            >
+                              <Edit3 className="w-4 h-4 text-gray-400" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingWallet(wallet.address)}
+                              className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                              title="Delete wallet"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-400" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Full Address (copyable) */}
+                    <div className="flex items-center gap-2 bg-gray-900/50 rounded-lg px-3 py-2">
+                      <code className="text-xs text-gray-400 flex-1 truncate">
+                        {wallet.address}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(wallet.address);
+                        }}
+                        className="p-1 hover:bg-gray-700 rounded transition-colors"
+                        title="Copy address"
+                      >
+                        <Copy className="w-3 h-3 text-gray-500" />
+                      </button>
+                    </div>
+
+                    {/* Last Synced */}
+                    {wallet.last_synced && (
+                      <p className="text-xs text-gray-500">
+                        Last synced: {timeAgo(wallet.last_synced)}
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-gray-700">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowWalletManager(false);
+                  setShowAddModal(true);
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add New Wallet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -316,6 +316,15 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
                       >
                         <ExternalLink className="w-3 h-3 text-gray-400" />
                       </button>
+                      <a
+                        href={`https://solscan.io/token/${token.mint}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-sol-purple hover:text-sol-purple/80"
+                        title="View on Solscan"
+                      >
+                        Solscan
+                      </a>
                     </div>
                     <p className="text-xs text-gray-500 truncate">{token.name}</p>
                   </div>

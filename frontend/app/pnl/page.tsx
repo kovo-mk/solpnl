@@ -654,8 +654,18 @@ export default function PnLDashboard() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-gray-500 hover:text-gray-300"
+                                    title="View on DexScreener"
                                   >
                                     <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                  <a
+                                    href={`https://solscan.io/token/${token.token_address}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-sol-purple hover:text-sol-purple/80"
+                                    title="View on Solscan"
+                                  >
+                                    Solscan
                                   </a>
                                 </div>
                                 <p className="text-xs text-gray-500">{timeAgo(token.last_trade)}</p>

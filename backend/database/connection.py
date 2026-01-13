@@ -31,22 +31,32 @@ def get_db():
 def run_migrations():
     """Run database migrations for new columns."""
     with engine.connect() as conn:
-        # Check if is_verified column exists in tokens table
         if settings.database_url.startswith("sqlite"):
+            # SQLite migrations
+            # Check tokens table columns
             result = conn.execute(text("PRAGMA table_info(tokens)"))
-            columns = [row[1] for row in result.fetchall()]
-            if "is_verified" not in columns:
+            token_columns = [row[1] for row in result.fetchall()]
+            if "is_verified" not in token_columns:
                 logger.info("Adding is_verified column to tokens table...")
                 conn.execute(text("ALTER TABLE tokens ADD COLUMN is_verified BOOLEAN DEFAULT 0"))
                 conn.commit()
                 logger.info("is_verified column added successfully")
-            if "is_hidden" not in columns:
+            if "is_hidden" not in token_columns:
                 logger.info("Adding is_hidden column to tokens table...")
                 conn.execute(text("ALTER TABLE tokens ADD COLUMN is_hidden BOOLEAN DEFAULT 0"))
                 conn.commit()
                 logger.info("is_hidden column added successfully")
+
+            # Check tracked_wallets table columns
+            result = conn.execute(text("PRAGMA table_info(tracked_wallets)"))
+            wallet_columns = [row[1] for row in result.fetchall()]
+            if "user_id" not in wallet_columns:
+                logger.info("Adding user_id column to tracked_wallets table...")
+                conn.execute(text("ALTER TABLE tracked_wallets ADD COLUMN user_id INTEGER"))
+                conn.commit()
+                logger.info("user_id column added successfully")
         else:
-            # PostgreSQL
+            # PostgreSQL migrations
             result = conn.execute(text("""
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'tokens' AND column_name = 'is_verified'
@@ -66,6 +76,16 @@ def run_migrations():
                 conn.execute(text("ALTER TABLE tokens ADD COLUMN is_hidden BOOLEAN DEFAULT FALSE"))
                 conn.commit()
                 logger.info("is_hidden column added successfully")
+
+            result = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'tracked_wallets' AND column_name = 'user_id'
+            """))
+            if result.fetchone() is None:
+                logger.info("Adding user_id column to tracked_wallets table...")
+                conn.execute(text("ALTER TABLE tracked_wallets ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"))
+                conn.commit()
+                logger.info("user_id column added successfully")
 
 
 def init_db():

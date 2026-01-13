@@ -16,7 +16,13 @@
     "swr": "^2.2.4",
     "lucide-react": "^0.312.0",
     "clsx": "^2.1.0",
-    "tailwind-merge": "^2.2.0"
+    "tailwind-merge": "^2.2.0",
+    "@solana/wallet-adapter-base": "^0.9.23",
+    "@solana/wallet-adapter-react": "^0.15.35",
+    "@solana/wallet-adapter-react-ui": "^0.9.35",
+    "@solana/wallet-adapter-wallets": "^0.19.32",
+    "@solana/web3.js": "^1.95.3",
+    "bs58": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",

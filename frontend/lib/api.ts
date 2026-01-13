@@ -4,6 +4,35 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
+// Session token management
+let sessionToken: string | null = null;
+
+export function setSessionToken(token: string | null) {
+  sessionToken = token;
+}
+
+export function getSessionToken(): string | null {
+  // First check memory, then localStorage
+  if (sessionToken) return sessionToken;
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('solpnl_session_token');
+  }
+  return null;
+}
+
+// Auth response types
+export interface AuthNonceResponse {
+  nonce: string;
+  message: string;
+  pubkey: string;
+}
+
+export interface AuthVerifyResponse {
+  session_token: string;
+  pubkey: string;
+  expires_at: string | null;
+}
+
 export interface Wallet {
   id: number;
   address: string;
@@ -126,12 +155,22 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+
+    // Build headers with optional auth
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    };
+
+    // Add auth header if we have a session token
+    const token = getSessionToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
     });
 
     if (!response.ok) {
@@ -140,6 +179,43 @@ class ApiClient {
     }
 
     return response.json();
+  }
+
+  // ============ Auth Endpoints ============
+
+  async getAuthNonce(pubkey: string): Promise<AuthNonceResponse> {
+    return this.request<AuthNonceResponse>(`/auth/nonce?pubkey=${pubkey}`, {
+      method: 'POST',
+    });
+  }
+
+  async verifySignature(pubkey: string, signature: string, nonce: string): Promise<AuthVerifyResponse> {
+    return this.request<AuthVerifyResponse>(
+      `/auth/verify?pubkey=${pubkey}&signature=${encodeURIComponent(signature)}&nonce=${nonce}`,
+      { method: 'POST' }
+    );
+  }
+
+  async verifySession(token: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/auth/verify-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) return false;
+      const data = await response.json();
+      return data.valid === true;
+    } catch {
+      return false;
+    }
+  }
+
+  async logout(): Promise<void> {
+    await this.request('/auth/logout', { method: 'POST' });
+    setSessionToken(null);
   }
 
   // Wallet endpoints
