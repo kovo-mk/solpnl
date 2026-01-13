@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  ArrowLeft,
   RefreshCw,
   ExternalLink,
   TrendingUp,
@@ -11,9 +10,14 @@ import {
   Loader2,
   Search,
   Settings,
+  Wallet,
+  LineChart,
+  Plus,
+  BarChart3,
 } from 'lucide-react';
 import { api, type Portfolio, type TokenPnL, type Wallet } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import AddWalletModal from '@/components/AddWalletModal';
 
 type SortField = 'last_trade' | 'unrealized' | 'realized' | 'total_pnl' | 'balance' | 'bought' | 'sold' | 'position';
 type SortDirection = 'asc' | 'desc';
@@ -36,6 +40,7 @@ export default function PnLDashboard() {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showWalletManager, setShowWalletManager] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [editingWallet, setEditingWallet] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
 
@@ -221,61 +226,130 @@ export default function PnLDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black pb-20 md:pb-0">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      <header className="border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/" className="p-2 hover:bg-gray-800 rounded-lg transition-colors">
-                <ArrowLeft className="w-5 h-5" />
+            {/* Left: Logo + Desktop Nav */}
+            <div className="flex items-center gap-6">
+              {/* Logo */}
+              <Link href="/" className="flex items-center gap-2">
+                <div className="p-1.5 bg-gradient-to-br from-sol-purple to-sol-green rounded-lg">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-lg font-bold">SolPnL</span>
               </Link>
-              <div>
-                <h1 className="text-xl font-bold">P&L Dashboard</h1>
-                <p className="text-xs text-gray-400">Track your trading performance</p>
-              </div>
+
+              {/* Desktop Nav Tabs */}
+              <nav className="hidden md:flex items-center gap-1">
+                <Link
+                  href="/"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                >
+                  <Wallet className="w-4 h-4" />
+                  Portfolio
+                </Link>
+                <Link
+                  href="/pnl"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-gray-800"
+                >
+                  <LineChart className="w-4 h-4" />
+                  P&L
+                </Link>
+              </nav>
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* Wallet selector with shortened address */}
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2">
+              {/* Wallet selector */}
               {wallets.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedWallet || ''}
-                    onChange={(e) => setSelectedWallet(e.target.value)}
-                    className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm"
-                    title="Select wallet"
-                    aria-label="Select wallet"
-                  >
-                    {wallets.map((wallet) => (
-                      <option key={wallet.address} value={wallet.address}>
-                        {wallet.label ? `${wallet.label} (${shortenAddress(wallet.address)})` : shortenAddress(wallet.address)}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setShowWalletManager(!showWalletManager)}
-                    className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
-                    title="Manage wallets"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </button>
-                </div>
+                <select
+                  value={selectedWallet || ''}
+                  onChange={(e) => setSelectedWallet(e.target.value)}
+                  className="px-2 md:px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs md:text-sm max-w-[100px] sm:max-w-[140px] md:max-w-[180px]"
+                  title="Select wallet"
+                  aria-label="Select wallet"
+                >
+                  {wallets.map((wallet) => (
+                    <option key={wallet.address} value={wallet.address}>
+                      {wallet.label ? `${wallet.label.slice(0, 12)}${wallet.label.length > 12 ? '...' : ''}` : shortenAddress(wallet.address)}
+                    </option>
+                  ))}
+                </select>
               )}
 
+              {/* Desktop: Settings + Sync */}
+              <div className="hidden md:flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowWalletManager(true)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Manage Wallets"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSync}
+                  disabled={syncing || !selectedWallet}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors disabled:opacity-50 text-sm"
+                >
+                  <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} />
+                  {syncing ? 'Syncing...' : 'Sync'}
+                </button>
+              </div>
+
+              {/* Mobile: Just sync button */}
               <button
+                type="button"
                 onClick={handleSync}
                 disabled={syncing || !selectedWallet}
-                className="flex items-center gap-2 px-4 py-2 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors disabled:opacity-50"
+                className="md:hidden p-2 bg-sol-purple hover:bg-sol-purple/80 rounded-lg transition-colors disabled:opacity-50"
+                title="Sync wallet"
               >
                 <RefreshCw className={cn('w-4 h-4', syncing && 'animate-spin')} />
-                {syncing ? 'Syncing...' : 'Sync'}
               </button>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 z-50">
+        <div className="flex items-center justify-around py-2 px-2">
+          <Link
+            href="/"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+          >
+            <Wallet className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Portfolio</span>
+          </Link>
+          <Link
+            href="/pnl"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-sol-purple"
+          >
+            <LineChart className="w-5 h-5" />
+            <span className="text-[10px] font-medium">P&L</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Add</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowWalletManager(true)}
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Settings</span>
+          </button>
+        </div>
+      </nav>
 
       {/* Wallet Manager Modal */}
       {showWalletManager && (
@@ -353,31 +427,31 @@ export default function PnLDashboard() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Time Period Selector */}
-        <div className="flex items-center justify-between mb-6">
+      <div className="max-w-7xl mx-auto px-3 py-4 md:px-4 md:py-6">
+        {/* Time Period Selector - Mobile optimized */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-400">Time Period:</span>
-            <div className="flex gap-1 bg-gray-800 rounded-lg p-1">
+            <span className="text-xs md:text-sm text-gray-400 hidden sm:inline">Time Period:</span>
+            <div className="flex gap-0.5 md:gap-1 bg-gray-800 rounded-lg p-0.5 md:p-1 flex-1 sm:flex-initial">
               {(['all', '24h', '7d', '30d'] as TimePeriod[]).map((period) => (
                 <button
                   key={period}
                   type="button"
                   onClick={() => setTimePeriod(period)}
                   className={cn(
-                    'px-3 py-1 text-sm rounded-md transition-colors',
+                    'px-2 md:px-3 py-1.5 md:py-1 text-xs md:text-sm rounded-md transition-colors flex-1 sm:flex-initial',
                     timePeriod === period
                       ? 'bg-sol-purple text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
                   )}
                 >
-                  {period === 'all' ? 'All Time' : period.toUpperCase()}
+                  {period === 'all' ? 'All' : period.toUpperCase()}
                 </button>
               ))}
             </div>
           </div>
           {selectedWallet && (
-            <p className="text-sm text-gray-500">
+            <p className="text-xs md:text-sm text-gray-500 hidden sm:block">
               Viewing: <span className="font-mono text-gray-400">{shortenAddress(selectedWallet)}</span>
             </p>
           )}
@@ -399,9 +473,51 @@ export default function PnLDashboard() {
 
         {/* Dashboard Content */}
         {portfolio && stats && !loading && (
-          <div className="space-y-6">
-            {/* Summary Cards Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-4 md:space-y-6">
+            {/* Mobile Summary - Horizontal scroll stats */}
+            <div className="md:hidden bg-gray-800/50 border border-gray-700 rounded-xl p-3">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-gray-400 text-xs font-medium">Summary</h3>
+                <span className="text-cyan-400 text-sm font-bold">{stats.winRate.toFixed(0)}% Win</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <p className="text-gray-500 text-[10px]">Holdings</p>
+                  <p className="text-sm font-bold">{formatUSD(stats.totalHoldings)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-[10px]">Unrealised</p>
+                  <p className={cn(
+                    'text-sm font-semibold',
+                    stats.unrealizedPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                  )}>
+                    {formatUSD(stats.unrealizedPnL, true)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-[10px]">Total PnL</p>
+                  <p className={cn(
+                    'text-sm font-semibold',
+                    stats.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                  )}>
+                    {formatUSD(stats.totalPnL, true)}
+                  </p>
+                </div>
+              </div>
+              {/* Mini distribution bar */}
+              <div className="mt-3 h-1.5 bg-gray-700 rounded-full overflow-hidden flex">
+                {stats.distribution.map((tier, idx) => (
+                  <div
+                    key={idx}
+                    className={cn(tier.barColor)}
+                    style={{ width: `${tier.percent}%` }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Desktop Summary Cards Row */}
+            <div className="hidden md:grid md:grid-cols-3 gap-4">
               {/* Summary Card */}
               <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-5">
                 <h3 className="text-gray-400 text-sm font-medium mb-4">Summary</h3>
@@ -525,56 +641,151 @@ export default function PnLDashboard() {
 
             {/* Tabs and Table */}
             <div className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden">
-              {/* Tabs and Search */}
-              <div className="border-b border-gray-700 px-4 py-3 flex items-center justify-between flex-wrap gap-3">
-                <div className="flex gap-4">
+              {/* Tabs and Search - Mobile optimized */}
+              <div className="border-b border-gray-700 px-3 md:px-4 py-2 md:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-3">
+                <div className="flex gap-2 md:gap-4 overflow-x-auto pb-1 sm:pb-0 -mx-1 px-1">
                   <button
                     type="button"
                     onClick={() => setActiveTab('recently_traded')}
                     className={cn(
-                      'text-sm font-medium transition-colors',
+                      'text-xs md:text-sm font-medium transition-colors whitespace-nowrap',
                       activeTab === 'recently_traded' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                     )}
                   >
-                    Recently Traded
+                    Recent
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveTab('live_positions')}
                     className={cn(
-                      'text-sm font-medium transition-colors',
+                      'text-xs md:text-sm font-medium transition-colors whitespace-nowrap',
                       activeTab === 'live_positions' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                     )}
                   >
-                    Live Positions
+                    Live
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveTab('most_profitable')}
                     className={cn(
-                      'text-sm font-medium transition-colors',
+                      'text-xs md:text-sm font-medium transition-colors whitespace-nowrap',
                       activeTab === 'most_profitable' ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                     )}
                   >
-                    Most Profitable
+                    Top Gains
                   </button>
                 </div>
 
                 {/* Search Input */}
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <Search className="absolute left-2.5 md:left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 md:w-4 md:h-4 text-gray-500" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search tokens..."
-                    className="pl-9 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-sm w-48 focus:outline-none focus:border-sol-purple"
+                    placeholder="Search..."
+                    className="pl-8 md:pl-9 pr-3 md:pr-4 py-1.5 md:py-2 bg-gray-700 border border-gray-600 rounded-lg text-xs md:text-sm w-full sm:w-36 md:w-48 focus:outline-none focus:border-sol-purple"
                   />
                 </div>
               </div>
 
-              {/* Table Header */}
-              <div className="overflow-x-auto">
+              {/* Mobile Token Cards */}
+              <div className="md:hidden divide-y divide-gray-700/30">
+                {sortedTokens.map((token) => {
+                  const totalPnL = (token.unrealized_pnl_usd || 0) + token.realized_pnl_usd;
+                  const totalPnLPercent = token.total_buy_sol > 0
+                    ? ((token.total_sell_sol + (token.current_balance * token.avg_buy_price_sol) - token.total_buy_sol) / token.total_buy_sol) * 100
+                    : 0;
+                  const positionPercent = token.total_bought > 0
+                    ? (token.current_balance / token.total_bought) * 100
+                    : 0;
+
+                  return (
+                    <div key={token.token_address} className="p-3 hover:bg-gray-700/20">
+                      {/* Token header row */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {token.token_logo ? (
+                              <img src={token.token_logo} alt={token.token_symbol} className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] font-bold text-gray-400">
+                                {token.token_symbol.slice(0, 2)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium text-sm truncate">{token.token_symbol}</span>
+                              <a
+                                href={`https://dexscreener.com/solana/${token.token_address}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-500 hover:text-gray-300 flex-shrink-0"
+                                title="View on DexScreener"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                            <p className="text-[10px] text-gray-500">{timeAgo(token.last_trade)}</p>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className={cn(
+                            'text-sm font-semibold',
+                            totalPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                          )}>
+                            {formatUSD(totalPnL, true)}
+                          </p>
+                          <p className={cn(
+                            'text-[10px]',
+                            totalPnLPercent >= 0 ? 'text-green-400/70' : 'text-red-400/70'
+                          )}>
+                            {formatPercent(totalPnLPercent, true)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Stats row */}
+                      <div className="grid grid-cols-4 gap-2 text-center">
+                        <div>
+                          <p className="text-[10px] text-gray-500">Balance</p>
+                          <p className="text-xs font-medium">{formatUSD(token.current_value_usd)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500">Unrealised</p>
+                          <p className={cn(
+                            'text-xs font-medium',
+                            (token.unrealized_pnl_usd || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                          )}>
+                            {formatUSD(token.unrealized_pnl_usd, true)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500">Realised</p>
+                          {token.current_balance > 0 && token.total_sold === 0 ? (
+                            <p className="text-xs font-medium text-cyan-400">Hold</p>
+                          ) : (
+                            <p className={cn(
+                              'text-xs font-medium',
+                              token.realized_pnl_usd >= 0 ? 'text-green-400' : 'text-red-400'
+                            )}>
+                              {formatUSD(token.realized_pnl_usd, true)}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-gray-500">Position</p>
+                          <p className="text-xs font-medium">{positionPercent.toFixed(0)}%</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="text-xs text-gray-500 border-b border-gray-700/50">
@@ -778,7 +989,7 @@ export default function PnLDashboard() {
               </div>
 
               {sortedTokens.length === 0 && (
-                <div className="p-8 text-center text-gray-500">
+                <div className="p-6 md:p-8 text-center text-gray-500 text-sm">
                   No tokens found. Sync your wallet to see your trading history.
                 </div>
               )}
@@ -786,6 +997,16 @@ export default function PnLDashboard() {
           </div>
         )}
       </div>
+
+      {/* Add Wallet Modal */}
+      <AddWalletModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onWalletAdded={() => {
+          fetchWallets();
+          setShowAddModal(false);
+        }}
+      />
     </div>
   );
 }

@@ -191,68 +191,133 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black pb-20 md:pb-0">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      <header className="border-b border-gray-800 bg-gray-900/95 backdrop-blur-sm sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-3 py-2.5 md:px-4 md:py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gradient-to-br from-sol-purple to-sol-green rounded-xl">
-                <BarChart3 className="w-6 h-6 text-white" />
+            {/* Left: Logo + Desktop Nav */}
+            <div className="flex items-center gap-6">
+              {/* Logo */}
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-gradient-to-br from-sol-purple to-sol-green rounded-lg">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-lg font-bold">SolPnL</span>
               </div>
-              <div>
-                <h1 className="text-xl font-bold">SolPnL</h1>
-                <p className="text-xs text-gray-400">
-                  Track your Solana P/L per token
-                </p>
-              </div>
+
+              {/* Desktop Nav Tabs */}
+              <nav className="hidden md:flex items-center gap-1">
+                <Link
+                  href="/"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-gray-800"
+                >
+                  <Wallet className="w-4 h-4" />
+                  Portfolio
+                </Link>
+                <Link
+                  href="/pnl"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+                >
+                  <LineChart className="w-4 h-4" />
+                  P&L
+                </Link>
+              </nav>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Link
-                href="/pnl"
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
-              >
-                <LineChart className="w-4 h-4" />
-                P&L Dashboard
-              </Link>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Track Wallet
-              </button>
-              <WalletConnectButton />
+            {/* Right: Actions */}
+            <div className="flex items-center gap-2">
+              {/* Desktop: Add wallet + Settings + Connect */}
+              <div className="hidden md:flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Wallet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowWalletManager(true)}
+                  className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Manage Wallets"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+                <div className="w-px h-6 bg-gray-700 mx-1" />
+                <WalletConnectButton />
+              </div>
+
+              {/* Mobile: Just wallet connect */}
+              <div className="md:hidden">
+                <WalletConnectButton />
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Wallet Selector */}
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm border-t border-gray-800 z-50 safe-area-pb">
+        <div className="flex items-center justify-around py-2 px-2">
+          <Link
+            href="/"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-sol-purple"
+          >
+            <Wallet className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Portfolio</span>
+          </Link>
+          <Link
+            href="/pnl"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+          >
+            <LineChart className="w-5 h-5" />
+            <span className="text-[10px] font-medium">P&L</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+          >
+            <Plus className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Add</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowWalletManager(true)}
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Manage</span>
+          </button>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto px-3 py-4 md:px-4 md:py-6">
+        {/* Wallet Selector - More compact on mobile */}
         {wallets.length > 0 && (
-          <div className="flex gap-2 mb-6 overflow-x-auto pb-2 items-center">
+          <div className="flex gap-2 mb-4 md:mb-6 overflow-x-auto pb-2 items-center -mx-3 px-3 md:mx-0 md:px-0">
             {wallets.map((wallet) => (
               <button
                 type="button"
                 key={wallet.address}
                 onClick={() => setSelectedWallet(wallet.address)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors',
+                  'flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-lg whitespace-nowrap transition-colors text-sm md:text-base',
                   selectedWallet === wallet.address
                     ? 'bg-sol-purple text-white'
                     : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
                 )}
                 title={wallet.address}
               >
-                <Wallet className="w-4 h-4" />
+                <Wallet className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 <span>
                   {wallet.label ? (
                     <>
-                      {wallet.label}
-                      <span className="text-xs opacity-60 ml-1">({shortenAddress(wallet.address)})</span>
+                      <span className="hidden sm:inline">{wallet.label}</span>
+                      <span className="sm:hidden">{wallet.label.slice(0, 8)}{wallet.label.length > 8 ? '...' : ''}</span>
+                      <span className="text-[10px] md:text-xs opacity-60 ml-1">({shortenAddress(wallet.address)})</span>
                     </>
                   ) : (
                     shortenAddress(wallet.address)
@@ -260,11 +325,11 @@ export default function Home() {
                 </span>
               </button>
             ))}
-            {/* Wallet Manager Button */}
+            {/* Wallet Manager Button - Desktop only (mobile uses bottom nav) */}
             <button
               type="button"
               onClick={() => setShowWalletManager(true)}
-              className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors ml-2"
+              className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-800/50 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors ml-2"
               title="Manage Wallets"
             >
               <Settings className="w-4 h-4" />
@@ -310,58 +375,59 @@ export default function Home() {
 
         {/* Portfolio Content */}
         {portfolio && !loading && (
-          <div className="space-y-6">
-            {/* Actual Wallet Value (like Phantom) */}
+          <div className="space-y-4 md:space-y-6">
+            {/* Actual Wallet Value - Compact on mobile */}
             {balances && (
-              <div className="bg-gradient-to-br from-sol-purple/20 to-sol-green/20 border border-sol-purple/30 rounded-2xl p-6 mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-200">Wallet Value</h3>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-400">Verified tokens only</span>
-                    <button
-                      type="button"
-                      onClick={copyShareLink}
-                      className="flex items-center gap-1 px-2 py-1 bg-gray-800/50 hover:bg-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
-                      title="Copy share link"
-                    >
-                      {copied ? (
-                        <>
-                          <Check className="w-3 h-3 text-green-400" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Share2 className="w-3 h-3" />
-                          Share
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <p className="text-3xl font-bold text-white mb-2">
-                  ${(balances.total_portfolio_value_usd + walletValueAdjustment).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                {balances.total_token_value_usd !== balances.verified_token_value_usd && (
-                  <p className="text-sm text-gray-400 mb-4">
-                    (${(balances.total_token_value_usd + balances.sol_value_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} including unverified)
-                  </p>
-                )}
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="bg-gray-900/50 rounded-lg p-3">
-                    <p className="text-gray-400">SOL Balance</p>
-                    <p className="text-lg font-semibold">
-                      {balances.sol_balance.toFixed(4)} SOL
+              <div className="bg-gradient-to-br from-sol-purple/20 to-sol-green/20 border border-sol-purple/30 rounded-xl md:rounded-2xl p-4 md:p-6">
+                {/* Header row */}
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <p className="text-2xl md:text-3xl font-bold text-white">
+                      ${(balances.total_portfolio_value_usd + walletValueAdjustment).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    {balances.total_token_value_usd !== balances.verified_token_value_usd && (
+                      <p className="text-xs md:text-sm text-gray-400">
+                        (${(balances.total_token_value_usd + balances.sol_value_usd).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} incl. unverified)
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={copyShareLink}
+                    className="flex items-center gap-1 px-2 py-1 bg-gray-800/50 hover:bg-gray-700 rounded-lg text-xs text-gray-300 transition-colors"
+                    title="Copy share link"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3 h-3 text-green-400" />
+                        <span className="hidden sm:inline">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Share2 className="w-3 h-3" />
+                        <span className="hidden sm:inline">Share</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Stats row - Horizontal on mobile */}
+                <div className="flex gap-3 md:grid md:grid-cols-2 md:gap-4 overflow-x-auto -mx-1 px-1 md:mx-0 md:px-0">
+                  <div className="bg-gray-900/50 rounded-lg p-2.5 md:p-3 flex-shrink-0 min-w-[120px] md:min-w-0">
+                    <p className="text-[10px] md:text-xs text-gray-400 uppercase tracking-wide">SOL</p>
+                    <p className="text-base md:text-lg font-semibold">
+                      {balances.sol_balance.toFixed(4)}
+                    </p>
+                    <p className="text-[10px] md:text-xs text-gray-500">
                       ${balances.sol_value_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
                   </div>
-                  <div className="bg-gray-900/50 rounded-lg p-3">
-                    <p className="text-gray-400">Token Holdings</p>
-                    <p className="text-lg font-semibold">
-                      {balances.tokens.length} tokens
+                  <div className="bg-gray-900/50 rounded-lg p-2.5 md:p-3 flex-shrink-0 min-w-[120px] md:min-w-0">
+                    <p className="text-[10px] md:text-xs text-gray-400 uppercase tracking-wide">Tokens</p>
+                    <p className="text-base md:text-lg font-semibold">
+                      {balances.tokens.length}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-[10px] md:text-xs text-gray-500">
                       {balances.tokens.filter(t => t.is_verified).length + verifiedCountAdjustment} verified
                     </p>
                   </div>
