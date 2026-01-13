@@ -138,6 +138,23 @@ async def verify_signature(
     session_token = user.generate_session()
     db.commit()
 
+    # Auto-add the login wallet to tracked wallets if not already tracked
+    existing_wallet = db.query(TrackedWallet).filter(
+        TrackedWallet.user_id == user.id,
+        TrackedWallet.address == pubkey
+    ).first()
+
+    if not existing_wallet:
+        new_wallet = TrackedWallet(
+            address=pubkey,
+            label="My Wallet",
+            user_id=user.id,
+            is_active=True
+        )
+        db.add(new_wallet)
+        db.commit()
+        logger.info(f"Auto-added login wallet {pubkey} for user {user.id}")
+
     return {
         "session_token": session_token,
         "pubkey": pubkey,
