@@ -207,14 +207,15 @@ async def list_wallets(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """List tracked wallets for current user."""
-    query = db.query(TrackedWallet).filter(TrackedWallet.is_active == True)
+    if not current_user:
+        # No auth - return empty list (user must log in to see wallets)
+        return []
 
-    if current_user:
-        # Show only wallets belonging to this user
-        query = query.filter(TrackedWallet.user_id == current_user.id)
-    else:
-        # No auth - show only unowned wallets (legacy/shared)
-        query = query.filter(TrackedWallet.user_id == None)
+    # Show only wallets belonging to this user
+    query = db.query(TrackedWallet).filter(
+        TrackedWallet.is_active == True,
+        TrackedWallet.user_id == current_user.id
+    )
 
     wallets = query.all()
     return wallets
@@ -227,14 +228,14 @@ async def get_wallet(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """Get a specific wallet."""
-    query = db.query(TrackedWallet).filter(TrackedWallet.address == address)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
-    if current_user:
-        query = query.filter(TrackedWallet.user_id == current_user.id)
-    else:
-        query = query.filter(TrackedWallet.user_id == None)
+    wallet = db.query(TrackedWallet).filter(
+        TrackedWallet.address == address,
+        TrackedWallet.user_id == current_user.id
+    ).first()
 
-    wallet = query.first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not found")
     return wallet
@@ -248,14 +249,14 @@ async def update_wallet(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """Update wallet label or status."""
-    query = db.query(TrackedWallet).filter(TrackedWallet.address == address)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
-    if current_user:
-        query = query.filter(TrackedWallet.user_id == current_user.id)
-    else:
-        query = query.filter(TrackedWallet.user_id == None)
+    wallet = db.query(TrackedWallet).filter(
+        TrackedWallet.address == address,
+        TrackedWallet.user_id == current_user.id
+    ).first()
 
-    wallet = query.first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not found")
 
@@ -276,14 +277,14 @@ async def delete_wallet(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """Remove a wallet from tracking."""
-    query = db.query(TrackedWallet).filter(TrackedWallet.address == address)
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Authentication required")
 
-    if current_user:
-        query = query.filter(TrackedWallet.user_id == current_user.id)
-    else:
-        query = query.filter(TrackedWallet.user_id == None)
+    wallet = db.query(TrackedWallet).filter(
+        TrackedWallet.address == address,
+        TrackedWallet.user_id == current_user.id
+    ).first()
 
-    wallet = query.first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not found")
 
