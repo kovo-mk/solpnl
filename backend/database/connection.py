@@ -55,6 +55,15 @@ def run_migrations():
                 conn.execute(text("ALTER TABLE tracked_wallets ADD COLUMN user_id INTEGER"))
                 conn.commit()
                 logger.info("user_id column added successfully")
+
+            # Check users table columns
+            result = conn.execute(text("PRAGMA table_info(users)"))
+            user_columns = [row[1] for row in result.fetchall()]
+            if "auth_message" not in user_columns:
+                logger.info("Adding auth_message column to users table...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN auth_message TEXT"))
+                conn.commit()
+                logger.info("auth_message column added successfully")
         else:
             # PostgreSQL migrations
             result = conn.execute(text("""
@@ -86,6 +95,17 @@ def run_migrations():
                 conn.execute(text("ALTER TABLE tracked_wallets ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE"))
                 conn.commit()
                 logger.info("user_id column added successfully")
+
+            # Check users table for auth_message column
+            result = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'users' AND column_name = 'auth_message'
+            """))
+            if result.fetchone() is None:
+                logger.info("Adding auth_message column to users table...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN auth_message TEXT"))
+                conn.commit()
+                logger.info("auth_message column added successfully")
 
 
 def init_db():
