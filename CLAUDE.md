@@ -149,14 +149,13 @@ className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-2
 **3. Redesigned Light Mode**
 - Problem: Gray light mode was hard to read
 - Fix: Complete redesign with white backgrounds, blue accents, proper contrast
-- Files: `frontend/app/globals.css`, `frontend/app/page.tsx`, `frontend/components/TokenHoldingsList.tsx`, `frontend/components/PortfolioSummary.tsx`
+- Files: `frontend/app/globals.css`, `frontend/app/page.tsx`, `frontend/components/TokenHoldingsList.tsx`, `frontend/components/PortfolioSummary.tsx`, `frontend/components/TokenPnLCard.tsx`
 
 ---
 
 ## Known Issues / TODO
 
-- [ ] P/L page (`/pnl`) may need light mode styling updates
-- [ ] TokenPnLCard component may need light mode updates
+- [ ] P/L page (`/pnl`) may need light mode styling updates (header/nav duplicated from page.tsx)
 - [ ] Consider adding loading skeletons for better UX
 
 ---
@@ -196,10 +195,11 @@ JWT_SECRET=your_secret
 
 Recent commits:
 ```
+b6e9f2d Update TokenPnLCard for light mode styling
+e67a57f Add CLAUDE.md for cross-device session continuity
 7ea9b28 Update PortfolioSummary and TokenHoldingsList for light mode
 da605e5 Redesign light mode with clean white/black/blue theme
 ea1e819 Add database migration for auth_message column
-2db97c1 Fix ThemeContext SSR/SSG compatibility for Vercel build
 ```
 
 ---
