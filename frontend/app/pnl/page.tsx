@@ -10,7 +10,7 @@ import {
   Loader2,
   Search,
   Settings,
-  Wallet,
+  Wallet as WalletIcon,
   LineChart,
   Plus,
   BarChart3,
@@ -247,7 +247,7 @@ export default function PnLDashboard() {
                   href="/"
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
                 >
-                  <Wallet className="w-4 h-4" />
+                  <WalletIcon className="w-4 h-4" />
                   Portfolio
                 </Link>
                 <Link
@@ -322,7 +322,7 @@ export default function PnLDashboard() {
             href="/"
             className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-400 hover:text-white"
           >
-            <Wallet className="w-5 h-5" />
+            <WalletIcon className="w-5 h-5" />
             <span className="text-[10px] font-medium">Portfolio</span>
           </Link>
           <Link
