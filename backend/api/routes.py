@@ -193,8 +193,11 @@ async def add_wallet(
     current_user: Optional[User] = Depends(get_current_user)
 ):
     """Add a wallet to track."""
-    # Check if already exists for this user
-    query = db.query(TrackedWallet).filter(TrackedWallet.address == wallet.address)
+    # Check if already exists for this user (only check active wallets)
+    query = db.query(TrackedWallet).filter(
+        TrackedWallet.address == wallet.address,
+        TrackedWallet.is_active == True
+    )
     if current_user:
         query = query.filter(TrackedWallet.user_id == current_user.id)
     else:
@@ -203,6 +206,25 @@ async def add_wallet(
     existing = query.first()
     if existing:
         raise HTTPException(status_code=400, detail="Wallet already being tracked")
+
+    # Also check if there's an inactive wallet we can reactivate
+    reactivate_query = db.query(TrackedWallet).filter(
+        TrackedWallet.address == wallet.address,
+        TrackedWallet.is_active == False
+    )
+    if current_user:
+        reactivate_query = reactivate_query.filter(TrackedWallet.user_id == current_user.id)
+    else:
+        reactivate_query = reactivate_query.filter(TrackedWallet.user_id == None)
+
+    inactive_wallet = reactivate_query.first()
+    if inactive_wallet:
+        # Reactivate the existing wallet instead of creating a new one
+        inactive_wallet.is_active = True
+        inactive_wallet.label = wallet.label or inactive_wallet.label
+        db.commit()
+        db.refresh(inactive_wallet)
+        return inactive_wallet
 
     # Create wallet
     db_wallet = TrackedWallet(
