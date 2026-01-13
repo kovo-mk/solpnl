@@ -1,5 +1,5 @@
 """API routes for SolPnL."""
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
 from sqlalchemy.orm import Session
@@ -106,7 +106,7 @@ async def verify_signature(
     if user.auth_nonce != nonce:
         raise HTTPException(status_code=400, detail="Invalid nonce")
 
-    if user.nonce_expires_at and datetime.utcnow() > user.nonce_expires_at:
+    if user.nonce_expires_at and datetime.now(timezone.utc) > user.nonce_expires_at:
         raise HTTPException(status_code=400, detail="Nonce expired")
 
     # Verify signature
