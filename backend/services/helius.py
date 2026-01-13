@@ -94,13 +94,38 @@ class HeliusService:
             tx_type = tx.get("type", "")
             source = tx.get("source", "unknown")
 
-            # Check if this is a swap
-            is_swap = tx_type == "SWAP" or "SWAP" in tx_type.upper()
+            # Check if this is a swap - be more permissive
+            # Helius types: SWAP, TRANSFER, TOKEN_MINT, COMPRESSED_NFT_MINT, etc.
+            # Also check source for known DEXes
+            is_swap = (
+                tx_type == "SWAP" or
+                "SWAP" in tx_type.upper() or
+                source.upper() in ["JUPITER", "RAYDIUM", "ORCA", "METEORA", "PUMP_FUN", "PUMPFUN", "MOONSHOT"]
+            )
+
+            # Also check if there are both token transfers AND native transfers (likely a swap)
+            token_transfers = tx.get("tokenTransfers", [])
+            native_transfers = tx.get("nativeTransfers", [])
+
+            # If we have token transfers and native transfers, might be a swap
+            if not is_swap and token_transfers and native_transfers:
+                # Check if wallet is involved in both
+                wallet_in_tokens = any(
+                    t.get("fromUserAccount") == wallet_address or t.get("toUserAccount") == wallet_address
+                    for t in token_transfers
+                )
+                wallet_in_native = any(
+                    t.get("fromUserAccount") == wallet_address or t.get("toUserAccount") == wallet_address
+                    for t in native_transfers
+                )
+                if wallet_in_tokens and wallet_in_native:
+                    is_swap = True
+                    logger.debug(f"Detected swap by transfer pattern: {signature[:8]}...")
 
             if not is_swap:
                 return None
 
-            # Get token transfers
+            # Get token transfers (already fetched above)
             token_transfers = tx.get("tokenTransfers", [])
             native_transfers = tx.get("nativeTransfers", [])
 
@@ -243,6 +268,13 @@ class HeliusService:
                 break
 
             total_fetched += len(transactions)
+
+            # Log transaction types for debugging
+            tx_types = {}
+            for tx in transactions:
+                t = tx.get("type", "UNKNOWN")
+                tx_types[t] = tx_types.get(t, 0) + 1
+            logger.info(f"Transaction types in batch: {tx_types}")
 
             # Parse each transaction
             for tx in transactions:
