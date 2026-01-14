@@ -639,6 +639,7 @@ async def get_wallet_portfolio(address: str, db: Session = Depends(get_db)):
             token_logo=t.token_logo,
             current_balance=t.current_balance,
             avg_buy_price_sol=t.avg_buy_price_sol,
+            avg_buy_price_usd=t.avg_buy_price_usd,
             total_cost_sol=t.total_cost_sol,
             current_price_usd=t.current_price_usd,
             current_value_usd=t.current_value_usd,
