@@ -18,6 +18,8 @@ import { cn } from '@/lib/utils';
 import TokenHoldingsList from '@/components/TokenHoldingsList';
 import PortfolioSummary from '@/components/PortfolioSummary';
 import TokenPnLCard from '@/components/TokenPnLCard';
+import PnLSummaryCard from '@/components/PnLSummaryCard';
+import TokenPnLTable from '@/components/TokenPnLTable';
 
 export default function ViewWallet() {
   const params = useParams();
@@ -195,50 +197,34 @@ export default function ViewWallet() {
             )}
 
             {/* P/L Data (if wallet is tracked) */}
-            {portfolio && (
+            {portfolio && balances && (
               <>
-                <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
-                  <h3 className="text-sm font-medium text-gray-400 mb-3">P/L Summary</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <p className="text-xs text-gray-500">Total Value</p>
-                      <p className="text-lg font-bold">${portfolio.total_value_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Unrealized P/L</p>
-                      <p className={cn(
-                        'text-lg font-bold',
-                        portfolio.total_unrealized_pnl_usd >= 0 ? 'text-green-400' : 'text-red-400'
-                      )}>
-                        {portfolio.total_unrealized_pnl_usd >= 0 ? '+' : ''}${portfolio.total_unrealized_pnl_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Realized P/L</p>
-                      <p className={cn(
-                        'text-lg font-bold',
-                        portfolio.total_realized_pnl_usd >= 0 ? 'text-green-400' : 'text-red-400'
-                      )}>
-                        {portfolio.total_realized_pnl_usd >= 0 ? '+' : ''}${portfolio.total_realized_pnl_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                {/* Jupiter-style P/L Summary Card */}
+                <PnLSummaryCard
+                  walletValue={balances.total_portfolio_value_usd}
+                  totalPnL={portfolio.total_unrealized_pnl_usd + portfolio.total_realized_pnl_usd}
+                  totalPnLPercentage={
+                    ((portfolio.total_unrealized_pnl_usd + portfolio.total_realized_pnl_usd) /
+                      (balances.total_portfolio_value_usd - (portfolio.total_unrealized_pnl_usd + portfolio.total_realized_pnl_usd))) *
+                    100
+                  }
+                  unrealizedPnL={portfolio.total_unrealized_pnl_usd}
+                  unrealizedPnLPercentage={
+                    (portfolio.total_unrealized_pnl_usd / (balances.total_portfolio_value_usd - portfolio.total_unrealized_pnl_usd)) * 100
+                  }
+                  realizedPnL={portfolio.total_realized_pnl_usd}
+                  realizedPnLPercentage={
+                    (portfolio.total_realized_pnl_usd / (balances.total_portfolio_value_usd - portfolio.total_realized_pnl_usd)) * 100
+                  }
+                  solBalance={balances.sol_balance}
+                  solValue={balances.sol_value_usd}
+                />
 
-                {/* Token P/L Cards */}
+                {/* Jupiter-style Token P/L Table with Tabs */}
                 {portfolio.tokens.length > 0 && (
                   <div>
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <span>Token P/L Breakdown</span>
-                      <span className="text-sm font-normal text-gray-400">
-                        ({portfolio.tokens.length} tokens)
-                      </span>
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {portfolio.tokens.map((token) => (
-                        <TokenPnLCard key={token.token_address} token={token} />
-                      ))}
-                    </div>
+                    <h3 className="text-lg font-semibold mb-4">Position PnL</h3>
+                    <TokenPnLTable tokens={portfolio.tokens} walletAddress={address} />
                   </div>
                 )}
               </>
