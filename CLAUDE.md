@@ -133,6 +133,22 @@ className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-2
 
 ## Recent Changes (January 2026)
 
+### Session: January 14, 2026 (Laptop Setup)
+
+**1. Fixed Light Mode Button Readability**
+- Problem: Wallet connect button and Add Wallet modal were unreadable in light mode (dark backgrounds on light theme)
+- Fix: Updated both components with proper light/dark mode styling
+- Files: `frontend/components/WalletConnectButton.tsx`, `frontend/components/AddWalletModal.tsx`
+- Changes:
+  - WalletConnectButton: gray-100 bg with gray-900 text + border in light mode
+  - AddWalletModal: white bg with blue accents, gray-50 input fields, proper contrast
+  - All states (loading, signing in, connected, dropdown) now readable in both modes
+
+**2. Verified Cloud Deployment Configuration**
+- Confirmed `NEXT_PUBLIC_API_URL` environment variable is set in Vercel
+- Points to Railway backend: `https://solpnl-production.up.railway.app/api`
+- No local setup required - everything runs 100% in the cloud
+
 ### Session: January 13, 2026
 
 **1. Fixed Wallet Authentication (400 Bad Request)**
@@ -214,4 +230,4 @@ ea1e819 Add database migration for auth_message column
 
 ---
 
-*Last updated: January 13, 2026*
+*Last updated: January 14, 2026*
