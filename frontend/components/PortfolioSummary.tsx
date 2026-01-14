@@ -64,7 +64,7 @@ export default function PortfolioSummary({
             <div className="group relative">
               <Info className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 cursor-help" />
               <div className="absolute left-0 top-5 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg p-3 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-10 shadow-lg">
-                Trading performance calculated from swap transactions - includes realized & unrealized P/L
+                Trading performance calculated from transaction history (swaps, transfers, airdrops, etc.) - includes realized & unrealized P/L
               </div>
             </div>
           </div>
