@@ -49,32 +49,32 @@ export default function AddWalletModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/30 dark:bg-black/70 backdrop-blur-sm"
         onClick={onClose}
       />
 
       {/* Modal */}
-      <div className="relative bg-gray-900 rounded-xl border border-gray-700 p-6 w-full max-w-md mx-4 shadow-2xl">
+      <div className="relative bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 w-full max-w-md mx-4 shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-sol-purple/20 rounded-lg">
-              <Wallet className="w-5 h-5 text-sol-purple" />
+            <div className="p-2 bg-blue-50 dark:bg-sol-purple/20 rounded-lg">
+              <Wallet className="w-5 h-5 text-blue-600 dark:text-sol-purple" />
             </div>
-            <h2 className="text-xl font-semibold">Add Wallet</h2>
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Add Wallet</h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
           </button>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">
+            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
               Wallet Address
             </label>
             <input
@@ -82,13 +82,13 @@ export default function AddWalletModal({
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="Enter Solana wallet address..."
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-sol-purple transition-colors"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 dark:focus:border-sol-purple transition-colors text-gray-900 dark:text-white placeholder:text-gray-400"
               disabled={loading}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-400 mb-2">
+            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
               Label (optional)
             </label>
             <input
@@ -96,13 +96,13 @@ export default function AddWalletModal({
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g., Main Trading, Burner..."
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-sol-purple transition-colors"
+              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 dark:focus:border-sol-purple transition-colors text-gray-900 dark:text-white placeholder:text-gray-400"
               disabled={loading}
             />
           </div>
 
           {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+            <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-lg text-red-700 dark:text-red-400 text-sm">
               {error}
             </div>
           )}
@@ -111,14 +111,14 @@ export default function AddWalletModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
+              className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors text-gray-900 dark:text-white"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-3 bg-sol-purple hover:bg-sol-purple/80 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-3 bg-blue-600 dark:bg-sol-purple hover:bg-blue-700 dark:hover:bg-sol-purple/80 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-white"
               disabled={loading}
             >
               {loading ? (
@@ -133,7 +133,7 @@ export default function AddWalletModal({
           </div>
         </form>
 
-        <p className="text-xs text-gray-500 mt-4 text-center">
+        <p className="text-xs text-gray-500 dark:text-gray-500 mt-4 text-center">
           We&apos;ll fetch your transaction history and calculate P/L automatically
         </p>
       </div>
