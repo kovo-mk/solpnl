@@ -217,6 +217,21 @@ class HeliusService:
             if abs(token_change) < 0.0001:
                 return None
 
+            # Detect token-to-token swaps (when there are 2+ token changes)
+            # One token goes out (negative), another comes in (positive)
+            other_token_mint = None
+            other_token_amount = 0.0
+
+            if category == "swap" and len(token_changes) >= 2:
+                # Find the "other side" of the swap
+                for mint, change in token_changes.items():
+                    if mint != token_mint:
+                        # This is the other token in the swap
+                        other_token_mint = mint
+                        other_token_amount = abs(change)
+                        logger.debug(f"Detected token-to-token swap: {token_mint[:8]} <-> {other_token_mint[:8]}")
+                        break
+
             # Determine transaction subtype based on token flow and category
             if category == "swap":
                 # For swaps, use buy/sell logic
@@ -320,7 +335,10 @@ class HeliusService:
                 "dex_name": dex_name,
                 "transfer_destination": transfer_destination,  # For transfers, where tokens went
                 "block_time": datetime.utcfromtimestamp(timestamp) if timestamp else None,
-                "helius_type": tx_type  # Original Helius transaction type
+                "helius_type": tx_type,  # Original Helius transaction type
+                # Token-to-token swap fields
+                "other_token_mint": other_token_mint,  # The other token in a token-to-token swap
+                "other_token_amount": other_token_amount  # Amount of the other token
             }
 
         except Exception as e:

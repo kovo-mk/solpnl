@@ -443,8 +443,14 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int, incremen
         # Get SOL price for USD calculations
         sol_price = await price_service.get_sol_price()
 
-        # Get unique tokens and fetch metadata
+        # Get unique tokens and fetch metadata (including "other tokens" from token-to-token swaps)
         token_mints = set(swap["token_mint"] for swap in swaps)
+
+        # Also add other tokens from token-to-token swaps
+        for swap in swaps:
+            if swap.get("other_token_mint"):
+                token_mints.add(swap["other_token_mint"])
+
         token_ids = {}
 
         for mint in token_mints:
@@ -477,6 +483,21 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int, incremen
                     token.price_updated_at = datetime.utcnow()
         db.commit()
 
+        # Enhance swap data with USD prices for token-to-token swaps
+        for swap in swaps:
+            if swap["price_per_token"] == 0 and swap.get("other_token_mint") and swap.get("other_token_amount"):
+                # Token-to-token swap - calculate price_usd from other token
+                other_token_price = prices.get(swap["other_token_mint"])
+                if other_token_price and swap["amount_token"] > 0:
+                    other_token_value_usd = swap["other_token_amount"] * other_token_price
+                    swap["price_usd"] = other_token_value_usd / swap["amount_token"]
+                    # Also calculate synthetic price_sol for backward compatibility
+                    swap["price_per_token"] = swap["price_usd"] / sol_price if sol_price > 0 else 0
+                else:
+                    swap["price_usd"] = None
+            else:
+                swap["price_usd"] = swap["price_per_token"] * sol_price if swap["price_per_token"] else None
+
         # Process transactions and calculate P/L
         calculator = PnLCalculator(db)
 
@@ -494,6 +515,19 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int, incremen
             ).first()
 
             if not existing:
+                # Calculate price_usd - handle both SOL swaps and token-to-token swaps
+                price_usd = None
+                if swap["price_per_token"] > 0:
+                    # Regular SOL swap
+                    price_usd = swap["price_per_token"] * sol_price
+                elif swap.get("other_token_mint") and swap.get("other_token_amount"):
+                    # Token-to-token swap - calculate USD value from other token
+                    other_token_price = prices.get(swap["other_token_mint"])
+                    if other_token_price and swap["amount_token"] > 0:
+                        # Price per token = (other_token_amount * other_token_price_usd) / amount_token
+                        other_token_value_usd = swap["other_token_amount"] * other_token_price
+                        price_usd = other_token_value_usd / swap["amount_token"]
+
                 tx = Transaction(
                     signature=swap["signature"],
                     wallet_id=wallet_id,
@@ -503,7 +537,7 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int, incremen
                     amount_token=swap["amount_token"],
                     amount_sol=swap["amount_sol"],
                     price_per_token=swap["price_per_token"],
-                    price_usd=swap["price_per_token"] * sol_price if swap["price_per_token"] else None,
+                    price_usd=price_usd,
                     dex_name=swap["dex_name"],
                     transfer_destination=swap.get("transfer_destination"),  # New field
                     helius_type=swap.get("helius_type"),  # New field

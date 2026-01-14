@@ -159,6 +159,10 @@ class PnLCalculator:
             block_time = tx.get("block_time")
             signature = tx.get("signature")
 
+            # Token-to-token swap fields
+            other_token_mint = tx.get("other_token_mint")
+            other_token_amount = tx.get("other_token_amount", 0)
+
             sol_price_usd = sol_prices.get(signature, 200.0)  # Default SOL price
 
             if token_mint not in token_lots:
