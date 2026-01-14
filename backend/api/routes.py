@@ -449,11 +449,14 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int):
                     wallet_id=wallet_id,
                     token_id=token_ids.get(swap["token_mint"]),
                     tx_type=swap["tx_type"],
+                    category=swap.get("category", "swap"),  # New field
                     amount_token=swap["amount_token"],
                     amount_sol=swap["amount_sol"],
                     price_per_token=swap["price_per_token"],
                     price_usd=swap["price_per_token"] * sol_price if swap["price_per_token"] else None,
                     dex_name=swap["dex_name"],
+                    transfer_destination=swap.get("transfer_destination"),  # New field
+                    helius_type=swap.get("helius_type"),  # New field
                     block_time=swap["block_time"]
                 )
                 db.add(tx)

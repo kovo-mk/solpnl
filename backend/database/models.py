@@ -119,7 +119,7 @@ class Token(Base):
 
 
 class Transaction(Base):
-    """Individual swap transactions for P/L tracking."""
+    """Individual transactions for P/L tracking (swaps, transfers, airdrops, etc.)."""
     __tablename__ = "transactions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -130,11 +130,12 @@ class Transaction(Base):
     token_id = Column(Integer, ForeignKey("tokens.id", ondelete="SET NULL"), nullable=True)
 
     # Transaction details
-    tx_type = Column(String(10), nullable=False)  # 'buy' or 'sell'
+    tx_type = Column(String(20), nullable=False)  # buy, sell, transfer_in, transfer_out, airdrop, staking_reward, etc.
+    category = Column(String(20), nullable=True)  # swap, transfer, airdrop, staking, liquidity, burn, other
 
     # Amounts
     amount_token = Column(Float, nullable=False)  # Token amount
-    amount_sol = Column(Float, nullable=False)    # SOL amount
+    amount_sol = Column(Float, nullable=False)    # SOL amount (0 for transfers/airdrops)
     price_per_token = Column(Float, nullable=True)  # Price at time of trade (in SOL)
     price_usd = Column(Float, nullable=True)       # USD price at time of trade
 
@@ -145,6 +146,8 @@ class Transaction(Base):
 
     # Metadata
     dex_name = Column(String(50), nullable=True)  # jupiter, raydium, etc.
+    transfer_destination = Column(String(255), nullable=True)  # For transfers, where tokens went
+    helius_type = Column(String(50), nullable=True)  # Original Helius transaction type
     block_time = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps

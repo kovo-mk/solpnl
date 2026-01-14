@@ -73,20 +73,21 @@ class HeliusService:
             logger.error(f"Error fetching wallet transactions: {e}")
             return []
 
-    def parse_swap_transaction(
+    def parse_transaction(
         self,
         tx: Dict[str, Any],
         wallet_address: str
     ) -> Optional[Dict[str, Any]]:
         """
-        Parse a Helius enhanced transaction to extract swap data.
+        Parse a Helius enhanced transaction to extract token movement data.
+        Handles: swaps, transfers, airdrops, staking rewards, burns, etc.
 
         Args:
             tx: Enhanced transaction from Helius
             wallet_address: The wallet we're tracking
 
         Returns:
-            Parsed swap data or None if not a swap
+            Parsed transaction data or None if not relevant
         """
         try:
             signature = tx.get("signature")
@@ -94,22 +95,34 @@ class HeliusService:
             tx_type = tx.get("type", "")
             source = tx.get("source", "unknown")
 
-            # Check if this is a swap - be more permissive
-            # Helius types: SWAP, TRANSFER, TOKEN_MINT, COMPRESSED_NFT_MINT, etc.
-            # Also check source for known DEXes
+            # Categorize transaction types
+            # SWAP types - trading tokens
             is_swap = (
-                tx_type == "SWAP" or
+                tx_type in ["SWAP", "INIT_SWAP", "BUY", "SELL"] or
                 "SWAP" in tx_type.upper() or
                 source.upper() in ["JUPITER", "RAYDIUM", "ORCA", "METEORA", "PUMP_FUN", "PUMPFUN", "MOONSHOT"]
             )
 
-            # Also check if there are both token transfers AND native transfers (likely a swap)
+            # TRANSFER types - moving tokens between wallets
+            is_transfer = tx_type in ["TRANSFER"]
+
+            # AIRDROP/MINT types - receiving free tokens
+            is_airdrop = tx_type in ["TOKEN_MINT", "COMPRESSED_NFT_MINT", "NFT_MINT"]
+
+            # STAKING types - staking rewards and operations
+            is_staking = tx_type in ["STAKE_TOKEN", "UNSTAKE_TOKEN", "STAKE_SOL", "UNSTAKE_SOL", "CLAIM_REWARDS"]
+
+            # LIQUIDITY types - LP operations
+            is_liquidity = tx_type in ["ADD_LIQUIDITY", "REMOVE_FROM_POOL", "CREATE_POOL"]
+
+            # BURN types - burning tokens
+            is_burn = tx_type in ["BURN", "BURN_NFT"]
+
             token_transfers = tx.get("tokenTransfers", [])
             native_transfers = tx.get("nativeTransfers", [])
 
-            # If we have token transfers and native transfers, might be a swap
+            # For swaps, check if there are both token and native transfers (classic swap pattern)
             if not is_swap and token_transfers and native_transfers:
-                # Check if wallet is involved in both
                 wallet_in_tokens = any(
                     t.get("fromUserAccount") == wallet_address or t.get("toUserAccount") == wallet_address
                     for t in token_transfers
@@ -122,16 +135,31 @@ class HeliusService:
                     is_swap = True
                     logger.debug(f"Detected swap by transfer pattern: {signature[:8]}...")
 
-            if not is_swap:
+            # Skip if not a relevant transaction type
+            is_relevant = is_swap or is_transfer or is_airdrop or is_staking or is_liquidity or is_burn
+            if not is_relevant:
                 return None
 
-            # Get token transfers (already fetched above)
-            token_transfers = tx.get("tokenTransfers", [])
-            native_transfers = tx.get("nativeTransfers", [])
+            # Determine category for this transaction
+            if is_swap:
+                category = "swap"
+            elif is_transfer:
+                category = "transfer"
+            elif is_airdrop:
+                category = "airdrop"
+            elif is_staking:
+                category = "staking"
+            elif is_liquidity:
+                category = "liquidity"
+            elif is_burn:
+                category = "burn"
+            else:
+                category = "other"
 
             # Track changes per token (excluding SOL/WSOL)
             token_changes: Dict[str, float] = {}  # mint -> amount change
             sol_change = 0.0
+            transfer_destination = None  # Track where tokens were sent (for transfers)
 
             # Process token transfers
             for transfer in token_transfers:
@@ -149,6 +177,8 @@ class HeliusService:
                         sol_change += amount
                     elif from_addr == wallet_address:
                         sol_change -= amount
+                        if category == "transfer" and not transfer_destination:
+                            transfer_destination = to_addr
                 else:
                     # Regular token
                     if mint not in token_changes:
@@ -157,6 +187,9 @@ class HeliusService:
                         token_changes[mint] += amount
                     elif from_addr == wallet_address:
                         token_changes[mint] -= amount
+                        # Track transfer destination for outgoing transfers
+                        if category == "transfer" and not transfer_destination:
+                            transfer_destination = to_addr
 
             # Process native SOL transfers
             for transfer in native_transfers:
@@ -184,30 +217,86 @@ class HeliusService:
             if abs(token_change) < 0.0001:
                 return None
 
-            # Determine swap type
-            if token_change > 0:
-                # Gained tokens = BUY
-                swap_type = "buy"
-                amount_token = token_change
-                amount_sol = abs(sol_change) if sol_change < 0 else 0
+            # Determine transaction subtype based on token flow and category
+            if category == "swap":
+                # For swaps, use buy/sell logic
+                if token_change > 0:
+                    # Gained tokens = BUY
+                    swap_type = "buy"
+                    amount_token = token_change
+                    amount_sol = abs(sol_change) if sol_change < 0 else 0
 
-                # If no direct SOL change, estimate from other flows
-                if amount_sol == 0:
-                    # Look for the largest SOL outflow
-                    for transfer in native_transfers:
-                        if transfer.get("fromUserAccount") == wallet_address:
-                            amount_sol = max(amount_sol, float(transfer.get("amount", 0) or 0) / 1e9)
-            else:
-                # Lost tokens = SELL
-                swap_type = "sell"
+                    # If no direct SOL change, estimate from other flows
+                    if amount_sol == 0:
+                        for transfer in native_transfers:
+                            if transfer.get("fromUserAccount") == wallet_address:
+                                amount_sol = max(amount_sol, float(transfer.get("amount", 0) or 0) / 1e9)
+                else:
+                    # Lost tokens = SELL
+                    swap_type = "sell"
+                    amount_token = abs(token_change)
+                    amount_sol = sol_change if sol_change > 0 else 0
+
+                    # If no direct SOL change, estimate from other flows
+                    if amount_sol == 0:
+                        for transfer in native_transfers:
+                            if transfer.get("toUserAccount") == wallet_address:
+                                amount_sol = max(amount_sol, float(transfer.get("amount", 0) or 0) / 1e9)
+
+            elif category == "transfer":
+                # For transfers, track as transfer_out or transfer_in
+                if token_change > 0:
+                    swap_type = "transfer_in"
+                    amount_token = token_change
+                    amount_sol = 0  # Transfers don't involve SOL exchange
+                else:
+                    swap_type = "transfer_out"
+                    amount_token = abs(token_change)
+                    amount_sol = 0
+
+            elif category == "airdrop":
+                # Airdrops are always incoming with $0 cost basis
+                swap_type = "airdrop"
                 amount_token = abs(token_change)
-                amount_sol = sol_change if sol_change > 0 else 0
+                amount_sol = 0
 
-                # If no direct SOL change, estimate from other flows
-                if amount_sol == 0:
-                    for transfer in native_transfers:
-                        if transfer.get("toUserAccount") == wallet_address:
-                            amount_sol = max(amount_sol, float(transfer.get("amount", 0) or 0) / 1e9)
+            elif category == "staking":
+                # Staking rewards are incoming, staking is outgoing
+                if token_change > 0:
+                    swap_type = "staking_reward"
+                    amount_token = token_change
+                    amount_sol = 0
+                else:
+                    swap_type = "stake"
+                    amount_token = abs(token_change)
+                    amount_sol = 0
+
+            elif category == "liquidity":
+                # LP operations
+                if token_change > 0:
+                    swap_type = "liquidity_remove"
+                    amount_token = token_change
+                    amount_sol = abs(sol_change) if sol_change < 0 else 0
+                else:
+                    swap_type = "liquidity_add"
+                    amount_token = abs(token_change)
+                    amount_sol = sol_change if sol_change > 0 else 0
+
+            elif category == "burn":
+                swap_type = "burn"
+                amount_token = abs(token_change)
+                amount_sol = 0
+
+            else:
+                # Other types - treat as transfer
+                if token_change > 0:
+                    swap_type = "other_in"
+                    amount_token = token_change
+                    amount_sol = 0
+                else:
+                    swap_type = "other_out"
+                    amount_token = abs(token_change)
+                    amount_sol = 0
 
             # Calculate price per token
             price_per_token = amount_sol / amount_token if amount_token > 0 else 0
@@ -223,36 +312,40 @@ class HeliusService:
                 "signature": signature,
                 "wallet_address": wallet_address,
                 "token_mint": token_mint,
-                "tx_type": swap_type,
+                "tx_type": swap_type,  # buy, sell, transfer_in, transfer_out, airdrop, staking_reward, etc.
+                "category": category,  # swap, transfer, airdrop, staking, liquidity, burn, other
                 "amount_token": amount_token,
                 "amount_sol": amount_sol,
                 "price_per_token": price_per_token,
                 "dex_name": dex_name,
-                "block_time": datetime.utcfromtimestamp(timestamp) if timestamp else None
+                "transfer_destination": transfer_destination,  # For transfers, where tokens went
+                "block_time": datetime.utcfromtimestamp(timestamp) if timestamp else None,
+                "helius_type": tx_type  # Original Helius transaction type
             }
 
         except Exception as e:
-            logger.warning(f"Error parsing swap transaction {tx.get('signature', 'unknown')[:8]}...: {e}")
+            logger.warning(f"Error parsing transaction {tx.get('signature', 'unknown')[:8]}...: {e}")
             return None
 
-    async def fetch_all_swaps(
+    async def fetch_all_transactions(
         self,
         wallet_address: str,
         max_transactions: int = 1000,
         progress_callback=None
     ) -> List[Dict[str, Any]]:
         """
-        Fetch all swap transactions for a wallet.
+        Fetch all relevant transactions for a wallet.
+        Includes: swaps, transfers, airdrops, staking, liquidity ops, burns, etc.
 
         Args:
-            wallet_address: Wallet to fetch swaps for
+            wallet_address: Wallet to fetch transactions for
             max_transactions: Maximum transactions to fetch
             progress_callback: Optional callback(fetched, parsed)
 
         Returns:
-            List of parsed swap transactions
+            List of parsed transactions
         """
-        swaps = []
+        parsed_txs = []
         before_sig = None
         total_fetched = 0
 
@@ -278,23 +371,33 @@ class HeliusService:
 
             # Parse each transaction
             for tx in transactions:
-                swap = self.parse_swap_transaction(tx, wallet_address)
-                if swap:
-                    swaps.append(swap)
+                parsed = self.parse_transaction(tx, wallet_address)
+                if parsed:
+                    parsed_txs.append(parsed)
 
             # Update pagination
             if transactions:
                 before_sig = transactions[-1].get("signature")
 
             if progress_callback:
-                await progress_callback(total_fetched, len(swaps))
+                await progress_callback(total_fetched, len(parsed_txs))
 
             # Rate limiting
             await asyncio.sleep(0.3)
 
-            logger.info(f"Fetched {total_fetched} transactions, found {len(swaps)} swaps")
+            logger.info(f"Fetched {total_fetched} transactions, found {len(parsed_txs)} relevant transactions")
 
-        return swaps
+        return parsed_txs
+
+    # Keep backward compatibility - alias old method name
+    async def fetch_all_swaps(
+        self,
+        wallet_address: str,
+        max_transactions: int = 1000,
+        progress_callback=None
+    ) -> List[Dict[str, Any]]:
+        """Deprecated: Use fetch_all_transactions instead."""
+        return await self.fetch_all_transactions(wallet_address, max_transactions, progress_callback)
 
     async def get_token_metadata(self, token_mint: str) -> Optional[Dict[str, Any]]:
         """

@@ -118,6 +118,30 @@ def run_migrations():
                 conn.commit()
                 logger.info("Old unique index dropped successfully")
 
+            # Add new transaction fields for comprehensive tracking
+            # Check if category column exists
+            result = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'transactions' AND column_name = 'category'
+            """))
+            if result.fetchone() is None:
+                logger.info("Adding new transaction tracking columns...")
+
+                # Add category column
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN category VARCHAR(20)"))
+
+                # Expand tx_type from VARCHAR(10) to VARCHAR(20)
+                conn.execute(text("ALTER TABLE transactions ALTER COLUMN tx_type TYPE VARCHAR(20)"))
+
+                # Add transfer_destination column
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN transfer_destination VARCHAR(255)"))
+
+                # Add helius_type column
+                conn.execute(text("ALTER TABLE transactions ADD COLUMN helius_type VARCHAR(50)"))
+
+                conn.commit()
+                logger.info("Transaction tracking columns added successfully")
+
 
 def init_db():
     """Initialize database tables."""

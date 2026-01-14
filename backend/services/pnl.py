@@ -136,9 +136,10 @@ class PnLCalculator:
     ) -> Dict[str, WalletTokenHolding]:
         """
         Process transactions and calculate P/L for each token.
+        Handles swaps, transfers, airdrops, staking rewards, etc.
 
         Args:
-            transactions: List of parsed swap transactions (sorted by time)
+            transactions: List of parsed transactions (sorted by time)
             sol_prices: Map of signature -> SOL price at that time
 
         Returns:
@@ -151,6 +152,7 @@ class PnLCalculator:
         for tx in sorted(transactions, key=lambda x: x.get("block_time") or datetime.min):
             token_mint = tx.get("token_mint")
             tx_type = tx.get("tx_type")
+            category = tx.get("category", "swap")  # Default to swap for backward compatibility
             amount = tx.get("amount_token", 0)
             price_sol = tx.get("price_per_token", 0)
             block_time = tx.get("block_time")
@@ -178,8 +180,9 @@ class PnLCalculator:
             holding["last_trade"] = block_time
             holding["trade_count"] += 1
 
+            # Handle different transaction types
             if tx_type == "buy":
-                # Add to cost basis lots
+                # Regular swap buy - add to cost basis
                 token_lots[token_mint].append(CostBasisLot(
                     amount=amount,
                     price_sol=price_sol,
@@ -193,7 +196,7 @@ class PnLCalculator:
                 holding["total_buy_sol"] += amount * price_sol
 
             elif tx_type == "sell":
-                # Calculate realized P/L using FIFO
+                # Regular swap sell - realize P/L using FIFO
                 pnl_sol, pnl_usd, remaining = self.calculate_realized_pnl(
                     sell_amount=amount,
                     sell_price_sol=price_sol,
@@ -209,6 +212,93 @@ class PnLCalculator:
                 holding["total_sell_sol"] += amount * price_sol
 
                 # Recalculate total cost from remaining lots
+                holding["total_cost_sol"] = sum(
+                    lot.amount * lot.price_sol for lot in remaining
+                )
+
+            elif tx_type in ["transfer_in", "other_in"]:
+                # Received tokens from transfer - add with $0 cost basis (similar to airdrop)
+                # This is conservative - we don't know the original cost
+                token_lots[token_mint].append(CostBasisLot(
+                    amount=amount,
+                    price_sol=0,  # $0 cost basis
+                    price_usd=0,
+                    timestamp=block_time
+                ))
+                holding["current_balance"] += amount
+
+            elif tx_type in ["transfer_out", "other_out"]:
+                # Sent tokens to another wallet - realize P/L at $0 (transfer, not a sale)
+                # This removes the tokens from cost basis using FIFO
+                pnl_sol, pnl_usd, remaining = self.calculate_realized_pnl(
+                    sell_amount=amount,
+                    sell_price_sol=0,  # No SOL received (it's a transfer, not a sale)
+                    cost_basis_lots=token_lots[token_mint],
+                    sol_price_usd=sol_price_usd
+                )
+
+                token_lots[token_mint] = remaining
+                holding["current_balance"] -= amount
+                # Don't count transfer as realized P/L - it's not a sale
+                # The P/L stays unrealized until actual sell
+
+                # Recalculate total cost from remaining lots
+                holding["total_cost_sol"] = sum(
+                    lot.amount * lot.price_sol for lot in remaining
+                )
+
+            elif tx_type in ["airdrop", "staking_reward"]:
+                # Free tokens - add with $0 cost basis (100% profit when sold)
+                token_lots[token_mint].append(CostBasisLot(
+                    amount=amount,
+                    price_sol=0,  # $0 cost basis
+                    price_usd=0,
+                    timestamp=block_time
+                ))
+                holding["current_balance"] += amount
+
+            elif tx_type == "stake":
+                # Staked tokens - remove from balance but don't realize P/L
+                token_lots[token_mint] = []  # Clear lots as tokens are staked
+                holding["current_balance"] -= amount
+                holding["total_cost_sol"] = 0
+
+            elif tx_type == "liquidity_add":
+                # Added to LP - similar to transfer out
+                pnl_sol, pnl_usd, remaining = self.calculate_realized_pnl(
+                    sell_amount=amount,
+                    sell_price_sol=0,
+                    cost_basis_lots=token_lots[token_mint],
+                    sol_price_usd=sol_price_usd
+                )
+                token_lots[token_mint] = remaining
+                holding["current_balance"] -= amount
+                holding["total_cost_sol"] = sum(
+                    lot.amount * lot.price_sol for lot in remaining
+                )
+
+            elif tx_type == "liquidity_remove":
+                # Removed from LP - add back with original cost basis estimate
+                token_lots[token_mint].append(CostBasisLot(
+                    amount=amount,
+                    price_sol=price_sol,
+                    price_usd=price_sol * sol_price_usd,
+                    timestamp=block_time
+                ))
+                holding["current_balance"] += amount
+                holding["total_cost_sol"] += amount * price_sol
+
+            elif tx_type == "burn":
+                # Burned tokens - realize P/L at $0
+                pnl_sol, pnl_usd, remaining = self.calculate_realized_pnl(
+                    sell_amount=amount,
+                    sell_price_sol=0,
+                    cost_basis_lots=token_lots[token_mint],
+                    sol_price_usd=sol_price_usd
+                )
+                token_lots[token_mint] = remaining
+                holding["current_balance"] -= amount
+                # Don't count burn as realized P/L
                 holding["total_cost_sol"] = sum(
                     lot.amount * lot.price_sol for lot in remaining
                 )
