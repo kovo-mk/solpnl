@@ -12,6 +12,7 @@ from database import get_db, TrackedWallet, Token, Transaction, WalletTokenHoldi
 from services.helius import helius_service
 from services.price import price_service
 from services.pnl import PnLCalculator
+from services.scheduler import scheduler
 from .schemas import (
     WalletCreate, WalletUpdate, WalletResponse,
     TokenResponse, TransactionResponse,
@@ -337,17 +338,26 @@ async def delete_wallet(
 async def sync_wallet(
     address: str,
     background_tasks: BackgroundTasks,
+    force_full: bool = False,
     db: Session = Depends(get_db)
 ):
-    """Trigger a sync for a wallet."""
+    """
+    Trigger a sync for a wallet.
+
+    Args:
+        address: Wallet address to sync
+        force_full: If True, perform full resync (default: False = incremental)
+    """
     wallet = db.query(TrackedWallet).filter(TrackedWallet.address == address).first()
     if not wallet:
         raise HTTPException(status_code=404, detail="Wallet not found")
 
-    # Start background sync
-    background_tasks.add_task(sync_wallet_transactions, address, wallet.id)
+    # Start background sync (incremental by default, unless force_full=True)
+    incremental = not force_full
+    background_tasks.add_task(sync_wallet_transactions, address, wallet.id, incremental)
 
-    return {"message": "Sync started", "wallet": address}
+    mode = "Full resync" if force_full else "Incremental sync"
+    return {"message": f"{mode} started", "wallet": address}
 
 
 @router.get("/wallets/{address}/sync/status", response_model=SyncStatus)
@@ -362,8 +372,15 @@ async def get_sync_status(address: str):
     return SyncStatus(**status)
 
 
-async def sync_wallet_transactions(wallet_address: str, wallet_id: int):
-    """Background task to sync wallet transactions."""
+async def sync_wallet_transactions(wallet_address: str, wallet_id: int, incremental: bool = True):
+    """
+    Background task to sync wallet transactions.
+
+    Args:
+        wallet_address: Wallet to sync
+        wallet_id: Database ID of wallet
+        incremental: If True, only fetch new transactions since last sync (default: True)
+    """
     from database.connection import SessionLocal
 
     sync_status[wallet_address] = {
@@ -371,12 +388,27 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int):
         "status": "syncing",
         "transactions_fetched": 0,
         "swaps_found": 0,
-        "message": "Fetching transactions..."
+        "message": "Checking for new transactions..."
     }
 
     db = SessionLocal()
 
     try:
+        # For incremental sync, find the most recent transaction timestamp
+        last_tx_time = None
+        if incremental:
+            last_tx = db.query(Transaction).filter(
+                Transaction.wallet_id == wallet_id
+            ).order_by(Transaction.block_time.desc()).first()
+
+            if last_tx and last_tx.block_time:
+                last_tx_time = last_tx.block_time
+                logger.info(f"Incremental sync: Last transaction at {last_tx_time}")
+                sync_status[wallet_address]["message"] = f"Fetching transactions since {last_tx_time.strftime('%Y-%m-%d')}..."
+            else:
+                logger.info("No previous transactions found, performing full sync")
+                sync_status[wallet_address]["message"] = "First sync - fetching all transactions..."
+
         # Fetch swaps from Helius
         async def progress_callback(fetched, swaps):
             sync_status[wallet_address]["transactions_fetched"] = fetched
@@ -387,6 +419,14 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int):
             max_transactions=1000,
             progress_callback=progress_callback
         )
+
+        # Filter out transactions we already have (for incremental sync)
+        if incremental and last_tx_time:
+            original_count = len(swaps)
+            swaps = [s for s in swaps if s.get("block_time") and s["block_time"] > last_tx_time]
+            filtered_count = original_count - len(swaps)
+            logger.info(f"Filtered {filtered_count} already-synced transactions, processing {len(swaps)} new ones")
+            sync_status[wallet_address]["message"] = f"Found {len(swaps)} new transactions..."
 
         sync_status[wallet_address]["message"] = "Processing transactions..."
 
@@ -949,6 +989,47 @@ async def debug_token_transactions(
         "transactions": tx_details,
         "transaction_count": len(tx_details)
     }
+
+
+# ============ Auto-Sync Configuration ============
+
+@router.post("/sync/auto/configure")
+async def configure_auto_sync(enabled: bool = False, interval_hours: int = 24):
+    """
+    Configure automatic sync for all wallets.
+
+    Args:
+        enabled: Enable/disable auto-sync
+        interval_hours: Hours between syncs (default: 24)
+    """
+    scheduler.configure(enabled=enabled, interval_hours=interval_hours)
+    return {
+        "auto_sync_enabled": enabled,
+        "interval_hours": interval_hours,
+        "message": f"Auto-sync {'enabled' if enabled else 'disabled'}"
+    }
+
+
+@router.get("/sync/auto/status")
+async def get_auto_sync_status():
+    """Get current auto-sync configuration."""
+    return {
+        "enabled": scheduler.enabled,
+        "interval_hours": scheduler.sync_interval_hours,
+        "is_running": scheduler.is_running
+    }
+
+
+@router.post("/sync/auto/trigger")
+async def trigger_auto_sync():
+    """Manually trigger an auto-sync for all wallets now."""
+    if not scheduler.is_running:
+        return {"error": "Auto-sync scheduler is not running. Enable auto-sync first."}
+
+    # Trigger sync in background
+    import asyncio
+    asyncio.create_task(scheduler.sync_all_wallets())
+    return {"message": "Auto-sync triggered for all wallets"}
 
 
 # ============ Health Check ============

@@ -7,6 +7,7 @@ from loguru import logger
 from config import settings
 from database import init_db
 from api import router
+from services.scheduler import scheduler
 
 # Create FastAPI app
 app = FastAPI(
@@ -34,6 +35,18 @@ async def startup():
     logger.info("Starting SolPnL API...")
     init_db()
     logger.info("Database initialized")
+
+    # Start auto-sync scheduler (disabled by default)
+    scheduler.start()
+    logger.info("Auto-sync scheduler initialized (use /api/sync/auto/configure to enable)")
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Cleanup on shutdown."""
+    logger.info("Shutting down SolPnL API...")
+    scheduler.stop()
+    logger.info("Auto-sync scheduler stopped")
 
 
 @app.get("/")
