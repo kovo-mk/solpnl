@@ -135,6 +135,16 @@ class HeliusService:
                     is_swap = True
                     logger.debug(f"Detected swap by transfer pattern: {signature[:8]}...")
 
+            # Also detect token-to-token swaps (2+ token transfers, wallet involved)
+            if not is_swap and len(token_transfers) >= 2:
+                wallet_involved = any(
+                    t.get("fromUserAccount") == wallet_address or t.get("toUserAccount") == wallet_address
+                    for t in token_transfers
+                )
+                if wallet_involved:
+                    is_swap = True
+                    logger.debug(f"Detected token-to-token swap by multiple token transfers: {signature[:8]}...")
+
             # Skip if not a relevant transaction type
             is_relevant = is_swap or is_transfer or is_airdrop or is_staking or is_liquidity or is_burn
             if not is_relevant:
