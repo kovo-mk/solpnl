@@ -877,6 +877,80 @@ async def toggle_token_hidden(mint: str, db: Session = Depends(get_db)):
     }
 
 
+# ============ Debug Endpoints ============
+
+@router.get("/wallets/{address}/debug/token/{token_symbol}")
+async def debug_token_transactions(
+    address: str,
+    token_symbol: str,
+    db: Session = Depends(get_db)
+):
+    """Debug endpoint to analyze transaction history for a specific token."""
+    wallet = db.query(TrackedWallet).filter(TrackedWallet.address == address).first()
+    if not wallet:
+        raise HTTPException(status_code=404, detail="Wallet not found")
+
+    # Find token by symbol
+    token = db.query(Token).filter(Token.symbol == token_symbol.upper()).first()
+    if not token:
+        raise HTTPException(status_code=404, detail=f"Token {token_symbol} not found")
+
+    # Get all transactions for this token
+    transactions = db.query(Transaction).filter(
+        Transaction.wallet_id == wallet.id,
+        Transaction.token_id == token.id
+    ).order_by(Transaction.block_time.asc()).all()
+
+    # Get holding summary
+    holding = db.query(WalletTokenHolding).filter(
+        WalletTokenHolding.wallet_id == wallet.id,
+        WalletTokenHolding.token_id == token.id
+    ).first()
+
+    # Format transaction details
+    tx_details = []
+    for tx in transactions:
+        tx_details.append({
+            "signature": tx.signature,
+            "block_time": tx.block_time.isoformat() if tx.block_time else None,
+            "tx_type": tx.tx_type,
+            "category": tx.category,
+            "helius_type": tx.helius_type,
+            "amount_token": tx.amount_token,
+            "amount_sol": tx.amount_sol,
+            "price_per_token": tx.price_per_token,
+            "price_usd": tx.price_usd,
+            "realized_pnl_sol": tx.realized_pnl_sol,
+            "realized_pnl_usd": tx.realized_pnl_usd,
+            "transfer_destination": tx.transfer_destination,
+            "dex_name": tx.dex_name
+        })
+
+    return {
+        "token": {
+            "address": token.address,
+            "symbol": token.symbol,
+            "name": token.name,
+            "current_price_usd": token.current_price_usd
+        },
+        "holding_summary": {
+            "current_balance": holding.current_balance if holding else 0,
+            "avg_buy_price": holding.avg_buy_price if holding else 0,
+            "total_cost_sol": holding.total_cost_sol if holding else 0,
+            "total_bought": holding.total_bought if holding else 0,
+            "total_sold": holding.total_sold if holding else 0,
+            "total_buy_sol": holding.total_buy_sol if holding else 0,
+            "total_sell_sol": holding.total_sell_sol if holding else 0,
+            "realized_pnl_sol": holding.realized_pnl_sol if holding else 0,
+            "realized_pnl_usd": holding.realized_pnl_usd if holding else 0,
+            "first_buy_at": holding.first_buy_at.isoformat() if holding and holding.first_buy_at else None,
+            "last_trade_at": holding.last_trade_at.isoformat() if holding and holding.last_trade_at else None
+        },
+        "transactions": tx_details,
+        "transaction_count": len(tx_details)
+    }
+
+
 # ============ Health Check ============
 
 @router.get("/health")
