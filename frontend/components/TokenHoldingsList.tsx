@@ -292,7 +292,7 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
             {sortedTokens.map((token) => (
               <div key={token.mint} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                 {/* Token row */}
-                <div className="p-4 flex items-center gap-4">
+                <div className="p-3 md:p-4 flex items-center gap-2 md:gap-4">
                   {/* Logo */}
                   <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {token.logo_url ? (
@@ -304,14 +304,15 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
                     )}
                   </div>
 
-                  {/* Token info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-900 dark:text-white">{token.symbol}</span>
+                  {/* Token info & data - responsive layout */}
+                  <div className="flex-1 min-w-0 flex flex-col gap-1">
+                    {/* Top row: Symbol + link */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-gray-900 dark:text-white text-sm">{token.symbol}</span>
                       <button
                         type="button"
                         onClick={() => openDexScreener(token.mint)}
-                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                        className="p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                         title="View on DexScreener"
                       >
                         <ExternalLink className="w-3 h-3 text-gray-400" />
@@ -326,94 +327,92 @@ export default function TokenHoldingsList({ tokens, walletAddress, onTokenVerifi
                         Solscan
                       </a>
                     </div>
-                    <p className="text-xs text-gray-500 truncate">{token.name}</p>
+
+                    {/* Bottom row: Balance, price, value */}
+                    <div className="flex items-baseline gap-2 text-xs text-gray-500 dark:text-gray-400">
+                      <span className="font-medium text-gray-900 dark:text-white">{formatBalance(token.balance)}</span>
+                      <span className="text-gray-400">•</span>
+                      <span className={token.price_usd ? '' : 'opacity-50'}>{formatPrice(token.price_usd)}</span>
+                      <span className="text-gray-400">price</span>
+                    </div>
                   </div>
 
-                  {/* Price */}
-                  <div className="text-right min-w-[80px]">
+                  {/* Value */}
+                  <div className="text-right flex-shrink-0">
                     <p className={cn(
-                      'text-sm font-medium',
-                      token.price_usd ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'
-                    )}>
-                      {formatPrice(token.price_usd)}
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500">price</p>
-                  </div>
-
-                  {/* Balance & Value */}
-                  <div className="text-right min-w-[100px]">
-                    <p className="font-medium text-gray-900 dark:text-white">{formatBalance(token.balance)}</p>
-                    <p className={cn(
-                      'text-sm',
-                      token.value_usd ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'
+                      'text-sm font-medium whitespace-nowrap',
+                      token.value_usd ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'
                     )}>
                       {formatUSD(token.value_usd)}
                     </p>
                   </div>
 
-                  {/* Verification toggle */}
-                  <button
-                    type="button"
-                    onClick={(e) => handleToggleVerification(token.mint, e)}
-                    disabled={togglingVerification === token.mint || token.mint === 'So11111111111111111111111111111111111111112'}
-                    className={cn(
-                      'p-2 rounded-lg transition-colors',
-                      isTokenVerified(token)
-                        ? 'bg-green-100 dark:bg-green-500/20 hover:bg-green-200 dark:hover:bg-green-500/30 text-green-600 dark:text-green-400'
-                        : 'bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500',
-                      token.mint === 'So11111111111111111111111111111111111111112' && 'cursor-default',
-                      togglingVerification === token.mint && 'opacity-50'
-                    )}
-                    title={isTokenVerified(token) ? 'Verified (counts towards wallet value)' : 'Not verified (click to verify)'}
-                  >
-                    {togglingVerification === token.mint ? (
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    ) : isTokenVerified(token) ? (
-                      <ShieldCheck className="w-4 h-4" />
-                    ) : (
-                      <ShieldOff className="w-4 h-4" />
-                    )}
-                  </button>
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Verification toggle */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleVerification(token.mint, e)}
+                      disabled={togglingVerification === token.mint || token.mint === 'So11111111111111111111111111111111111111112'}
+                      className={cn(
+                        'p-2 rounded-lg transition-colors',
+                        isTokenVerified(token)
+                          ? 'bg-green-100 dark:bg-green-500/20 hover:bg-green-200 dark:hover:bg-green-500/30 text-green-600 dark:text-green-400'
+                          : 'bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500',
+                        token.mint === 'So11111111111111111111111111111111111111112' && 'cursor-default',
+                        togglingVerification === token.mint && 'opacity-50'
+                      )}
+                      title={isTokenVerified(token) ? 'Verified (counts towards wallet value)' : 'Not verified (click to verify)'}
+                    >
+                      {togglingVerification === token.mint ? (
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : isTokenVerified(token) ? (
+                        <ShieldCheck className="w-4 h-4" />
+                      ) : (
+                        <ShieldOff className="w-4 h-4" />
+                      )}
+                    </button>
 
-                  {/* Hide toggle */}
-                  <button
-                    type="button"
-                    onClick={(e) => handleToggleHidden(token.mint, e)}
-                    disabled={togglingHidden === token.mint || token.mint === 'So11111111111111111111111111111111111111112'}
-                    className={cn(
-                      'p-2 rounded-lg transition-colors',
-                      isTokenHidden(token)
-                        ? 'bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/30 text-red-600 dark:text-red-400'
-                        : 'bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500',
-                      token.mint === 'So11111111111111111111111111111111111111112' && 'cursor-default',
-                      togglingHidden === token.mint && 'opacity-50'
-                    )}
-                    title={isTokenHidden(token) ? 'Hidden (click to unhide)' : 'Click to hide (scam airdrop)'}
-                  >
-                    {togglingHidden === token.mint ? (
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    ) : isTokenHidden(token) ? (
-                      <Eye className="w-4 h-4" />
-                    ) : (
-                      <EyeOff className="w-4 h-4" />
-                    )}
-                  </button>
+                    {/* Hide toggle */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleToggleHidden(token.mint, e)}
+                      disabled={togglingHidden === token.mint || token.mint === 'So11111111111111111111111111111111111111112'}
+                      className={cn(
+                        'p-2 rounded-lg transition-colors',
+                        isTokenHidden(token)
+                          ? 'bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/30 text-red-600 dark:text-red-400'
+                          : 'bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500',
+                        token.mint === 'So11111111111111111111111111111111111111112' && 'cursor-default',
+                        togglingHidden === token.mint && 'opacity-50'
+                      )}
+                      title={isTokenHidden(token) ? 'Hidden (click to unhide)' : 'Click to hide (scam airdrop)'}
+                    >
+                      {togglingHidden === token.mint ? (
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : isTokenHidden(token) ? (
+                        <Eye className="w-4 h-4" />
+                      ) : (
+                        <EyeOff className="w-4 h-4" />
+                      )}
+                    </button>
 
-                  {/* Expand button for transactions */}
-                  <button
-                    type="button"
-                    onClick={() => fetchTransactions(token.mint)}
-                    className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
-                    title="View transactions"
-                  >
-                    {loadingTx === token.mint ? (
-                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                    ) : expandedToken === token.mint ? (
-                      <ChevronUp className="w-4 h-4 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-gray-400" />
-                    )}
-                  </button>
+                    {/* Expand button for transactions */}
+                    <button
+                      type="button"
+                      onClick={() => fetchTransactions(token.mint)}
+                      className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                      title="View transactions"
+                    >
+                      {loadingTx === token.mint ? (
+                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      ) : expandedToken === token.mint ? (
+                        <ChevronUp className="w-4 h-4 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Transactions dropdown */}
