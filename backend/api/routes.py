@@ -434,7 +434,7 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int, incremen
 
         swaps = await helius_service.fetch_all_swaps(
             wallet_address,
-            max_transactions=5000,  # Increased from 1000 to 5000
+            max_transactions=10000,  # Increased to handle full transaction history (7K+ transfers)
             progress_callback=progress_callback
         )
 

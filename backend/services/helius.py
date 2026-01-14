@@ -330,7 +330,7 @@ class HeliusService:
     async def fetch_all_transactions(
         self,
         wallet_address: str,
-        max_transactions: int = 5000,
+        max_transactions: int = 10000,
         progress_callback=None
     ) -> List[Dict[str, Any]]:
         """
@@ -393,7 +393,7 @@ class HeliusService:
     async def fetch_all_swaps(
         self,
         wallet_address: str,
-        max_transactions: int = 5000,
+        max_transactions: int = 10000,
         progress_callback=None
     ) -> List[Dict[str, Any]]:
         """Deprecated: Use fetch_all_transactions instead."""
