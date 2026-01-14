@@ -58,6 +58,7 @@ export interface TokenPnL {
   token_logo: string | null;
   current_balance: number;
   avg_buy_price_sol: number;
+  avg_buy_price_usd: number | null;
   total_cost_sol: number;
   current_price_usd: number | null;
   current_value_usd: number | null;

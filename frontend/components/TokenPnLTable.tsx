@@ -214,7 +214,7 @@ export default function TokenPnLTable({ tokens, walletAddress }: TokenPnLTablePr
                       <div className="bg-gray-800/50 rounded-lg p-3">
                         <p className="text-xs text-gray-400 mb-1">Avg Buy Price</p>
                         <p className="font-semibold text-white">
-                          {token.avg_buy_price_sol?.toFixed(6)} SOL
+                          {token.avg_buy_price_usd ? `$${token.avg_buy_price_usd.toFixed(6)}` : 'N/A'}
                         </p>
                       </div>
 

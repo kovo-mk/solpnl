@@ -232,9 +232,9 @@ export default function TokenDetailPage() {
           <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
             <p className="text-sm text-gray-400 mb-1">Avg Buy Price</p>
             <p className="text-xl font-bold text-white">
-              {token.avg_buy_price_sol?.toFixed(6)}
+              {token.avg_buy_price_usd ? `$${token.avg_buy_price_usd.toFixed(6)}` : 'N/A'}
             </p>
-            <p className="text-xs text-gray-500 mt-1">SOL</p>
+            <p className="text-xs text-gray-500 mt-1">USD</p>
           </div>
           <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
             <p className="text-sm text-gray-400 mb-1">Current Price</p>

@@ -28,6 +28,7 @@ class TokenPnL:
     # Current holdings
     current_balance: float
     avg_buy_price_sol: float
+    avg_buy_price_usd: Optional[float]
     total_cost_sol: float
 
     # Current value
@@ -390,6 +391,11 @@ class PnLCalculator:
             total_realized_sol += holding.realized_pnl_sol
             total_realized_usd += holding.realized_pnl_usd
 
+            # Calculate avg buy price in USD
+            avg_buy_price_usd = None
+            if holding.avg_buy_price and sol_price_usd:
+                avg_buy_price_usd = holding.avg_buy_price * sol_price_usd
+
             token_pnls.append(TokenPnL(
                 token_address=token.address,
                 token_symbol=token.symbol or "???",
@@ -397,6 +403,7 @@ class PnLCalculator:
                 token_logo=token.logo_url,
                 current_balance=current_balance,  # Use actual balance
                 avg_buy_price_sol=holding.avg_buy_price,
+                avg_buy_price_usd=avg_buy_price_usd,
                 total_cost_sol=holding.total_cost_sol,
                 current_price_usd=current_price,
                 current_value_usd=current_value,

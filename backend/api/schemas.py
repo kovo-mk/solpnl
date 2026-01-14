@@ -75,6 +75,7 @@ class TokenPnLResponse(BaseModel):
     # Holdings
     current_balance: float
     avg_buy_price_sol: float
+    avg_buy_price_usd: Optional[float]
     total_cost_sol: float
 
     # Current value
