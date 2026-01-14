@@ -107,6 +107,17 @@ def run_migrations():
                 conn.commit()
                 logger.info("auth_message column added successfully")
 
+            # Drop old unique index on address alone (replaced by composite unique constraint)
+            result = conn.execute(text("""
+                SELECT indexname FROM pg_indexes
+                WHERE tablename = 'tracked_wallets' AND indexname = 'ix_tracked_wallets_address'
+            """))
+            if result.fetchone() is not None:
+                logger.info("Dropping old ix_tracked_wallets_address unique index...")
+                conn.execute(text("DROP INDEX IF EXISTS ix_tracked_wallets_address"))
+                conn.commit()
+                logger.info("Old unique index dropped successfully")
+
 
 def init_db():
     """Initialize database tables."""
