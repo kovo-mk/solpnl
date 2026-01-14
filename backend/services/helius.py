@@ -1,6 +1,6 @@
 """Helius API service for fetching Solana transaction history."""
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 import aiohttp
 from loguru import logger
@@ -334,7 +334,7 @@ class HeliusService:
                 "price_per_token": price_per_token,
                 "dex_name": dex_name,
                 "transfer_destination": transfer_destination,  # For transfers, where tokens went
-                "block_time": datetime.utcfromtimestamp(timestamp) if timestamp else None,
+                "block_time": datetime.fromtimestamp(timestamp, tz=timezone.utc) if timestamp else None,
                 "helius_type": tx_type,  # Original Helius transaction type
                 # Token-to-token swap fields
                 "other_token_mint": other_token_mint,  # The other token in a token-to-token swap
