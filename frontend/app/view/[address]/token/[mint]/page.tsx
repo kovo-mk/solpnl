@@ -151,7 +151,7 @@ export default function TokenDetailPage() {
             <div>
               <p className="text-sm text-gray-400 mb-1">Balance</p>
               <p className="text-3xl font-bold text-white">
-                {formatCurrency(token.current_value_usd)}
+                {formatCurrency(token.current_value_usd || 0)}
               </p>
               <p className="text-sm text-gray-500 mt-1">
                 {hasBalance ? token.current_balance.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '0'} {token.token_symbol}
