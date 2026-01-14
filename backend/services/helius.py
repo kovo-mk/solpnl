@@ -219,17 +219,18 @@ class HeliusService:
 
             # Detect token-to-token swaps (when there are 2+ token changes)
             # One token goes out (negative), another comes in (positive)
+            # This works for any transaction type, not just category="swap"
             other_token_mint = None
             other_token_amount = 0.0
 
-            if category == "swap" and len(token_changes) >= 2:
+            if len(token_changes) >= 2:
                 # Find the "other side" of the swap
                 for mint, change in token_changes.items():
                     if mint != token_mint:
                         # This is the other token in the swap
                         other_token_mint = mint
                         other_token_amount = abs(change)
-                        logger.debug(f"Detected token-to-token swap: {token_mint[:8]} <-> {other_token_mint[:8]}")
+                        logger.debug(f"Detected token-to-token swap: {token_mint[:8]} <-> {other_token_mint[:8]} (category={category})")
                         break
 
             # Determine transaction subtype based on token flow and category
