@@ -2,7 +2,7 @@
 
 import { Portfolio } from '@/lib/api';
 import { formatUSD, formatPnL, cn, shortenAddress, timeAgo } from '@/lib/utils';
-import { Wallet, TrendingUp, TrendingDown, RefreshCw, Loader2 } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, RefreshCw, Loader2, Info } from 'lucide-react';
 
 interface PortfolioSummaryProps {
   portfolio: Portfolio;
@@ -59,7 +59,15 @@ export default function PortfolioSummary({
       <div className="grid grid-cols-2 gap-4 mb-6">
         {/* Portfolio Value */}
         <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-transparent rounded-xl p-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Portfolio Value</p>
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-sm text-gray-500 dark:text-gray-400">Portfolio Value</p>
+            <div className="group relative">
+              <Info className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 cursor-help" />
+              <div className="absolute left-0 top-5 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg p-3 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-10 shadow-lg">
+                Trading performance calculated from swap transactions - includes realized & unrealized P/L
+              </div>
+            </div>
+          </div>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {formatUSD(portfolio.total_value_usd)}
           </p>

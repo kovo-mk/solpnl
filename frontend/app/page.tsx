@@ -20,6 +20,9 @@ import {
   Edit3,
   Sun,
   Moon,
+  Info,
+  Search,
+  ArrowUpDown,
 } from 'lucide-react';
 import { api, type Portfolio, type Wallet as WalletType, type SyncStatus, type WalletBalances } from '@/lib/api';
 import { formatUSD, formatPnL, cn, shortenAddress, timeAgo } from '@/lib/utils';
@@ -50,6 +53,8 @@ export default function Home() {
   const [editingWallet, setEditingWallet] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [deletingWallet, setDeletingWallet] = useState<string | null>(null);
+  const [pnlSearchTerm, setPnlSearchTerm] = useState('');
+  const [pnlSortBy, setPnlSortBy] = useState<'name' | 'date' | 'pnl' | 'holdings' | 'value'>('pnl');
 
   // Handle optimistic wallet value updates from token verification changes
   const handleTokenVerificationChange = useCallback((mint: string, isVerified: boolean, valueUsd: number | null) => {
@@ -403,7 +408,16 @@ export default function Home() {
               <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-sol-purple/20 dark:to-sol-green/20 border border-blue-200 dark:border-sol-purple/30 rounded-xl md:rounded-2xl p-4 md:p-6">
                 {/* Header row */}
                 <div className="flex items-start justify-between mb-3">
-                  <div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Current Wallet Value</p>
+                      <div className="group relative">
+                        <Info className="w-4 h-4 text-gray-400 dark:text-gray-500 cursor-help" />
+                        <div className="absolute left-0 top-6 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg p-3 w-64 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-10 shadow-lg">
+                          Actual on-chain balance of all verified tokens + SOL in this wallet right now
+                        </div>
+                      </div>
+                    </div>
                     <p className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
                       ${(balances.total_portfolio_value_usd + walletValueAdjustment).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
@@ -475,12 +489,51 @@ export default function Home() {
 
             {/* Token P/L Grid */}
             <div>
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
-                <span>Token P/L Breakdown</span>
-                <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
-                  ({portfolio.tokens.length} tokens)
-                </span>
-              </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
+                  <span>Token P/L Breakdown</span>
+                  <span className="text-sm font-normal text-gray-600 dark:text-gray-400">
+                    ({portfolio.tokens.filter(t =>
+                      t.token_symbol?.toLowerCase().includes(pnlSearchTerm.toLowerCase()) ||
+                      t.token_name?.toLowerCase().includes(pnlSearchTerm.toLowerCase())
+                    ).length} tokens)
+                  </span>
+                </h3>
+
+                {/* Search and Sort Controls */}
+                {portfolio.tokens.length > 0 && (
+                  <div className="flex gap-2 flex-1 sm:flex-initial sm:max-w-md">
+                    {/* Search */}
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search tokens..."
+                        value={pnlSearchTerm}
+                        onChange={(e) => setPnlSearchTerm(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:border-blue-500 dark:focus:border-sol-purple transition-colors text-gray-900 dark:text-white placeholder:text-gray-400"
+                      />
+                    </div>
+
+                    {/* Sort */}
+                    <div className="relative">
+                      <select
+                        value={pnlSortBy}
+                        onChange={(e) => setPnlSortBy(e.target.value as any)}
+                        title="Sort tokens"
+                        className="appearance-none pl-3 pr-8 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:outline-none focus:border-blue-500 dark:focus:border-sol-purple transition-colors text-gray-900 dark:text-white cursor-pointer"
+                      >
+                        <option value="pnl">Sort by P/L</option>
+                        <option value="name">Sort by Name</option>
+                        <option value="date">Sort by Date</option>
+                        <option value="holdings">Sort by Holdings</option>
+                        <option value="value">Sort by Value</option>
+                      </select>
+                      <ArrowUpDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {portfolio.tokens.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
@@ -491,9 +544,33 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {portfolio.tokens.map((token) => (
-                    <TokenPnLCard key={token.token_address} token={token} onTokenChange={fetchPortfolio} />
-                  ))}
+                  {portfolio.tokens
+                    .filter(token =>
+                      token.token_symbol?.toLowerCase().includes(pnlSearchTerm.toLowerCase()) ||
+                      token.token_name?.toLowerCase().includes(pnlSearchTerm.toLowerCase())
+                    )
+                    .sort((a, b) => {
+                      switch (pnlSortBy) {
+                        case 'name':
+                          return (a.token_symbol || '').localeCompare(b.token_symbol || '');
+                        case 'date':
+                          return new Date(b.last_trade || 0).getTime() - new Date(a.last_trade || 0).getTime();
+                        case 'pnl':
+                          const aPnl = (a.unrealized_pnl_usd || 0) + a.realized_pnl_usd;
+                          const bPnl = (b.unrealized_pnl_usd || 0) + b.realized_pnl_usd;
+                          return bPnl - aPnl;
+                        case 'holdings':
+                          return b.current_balance - a.current_balance;
+                        case 'value':
+                          return (b.current_value_usd || 0) - (a.current_value_usd || 0);
+                        default:
+                          return 0;
+                      }
+                    })
+                    .map((token) => (
+                      <TokenPnLCard key={token.token_address} token={token} onTokenChange={fetchPortfolio} />
+                    ))
+                  }
                 </div>
               )}
             </div>
