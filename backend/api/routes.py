@@ -545,9 +545,9 @@ async def get_wallet_portfolio(address: str, db: Session = Depends(get_db)):
         balance_data = await helius_service.get_wallet_balances(address)
         for token_balance in balance_data.get("tokens", []):
             mint = token_balance.get("mint")
-            amount = token_balance.get("amount", 0)
-            if mint and amount > 0:
-                actual_balances[mint] = amount
+            balance = token_balance.get("balance", 0)  # Fixed: was "amount", should be "balance"
+            if mint and balance > 0:
+                actual_balances[mint] = balance
                 # Also add to token_mints if not already tracked
                 if mint not in token_mints:
                     token_mints.append(mint)
