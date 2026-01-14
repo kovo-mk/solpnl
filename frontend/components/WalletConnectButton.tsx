@@ -61,7 +61,7 @@ export default function WalletConnectButton() {
     return (
       <button
         disabled
-        className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg text-gray-400"
+        className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-500 dark:text-gray-400"
       >
         <Loader2 className="w-4 h-4 animate-spin" />
         Loading...
@@ -87,7 +87,7 @@ export default function WalletConnectButton() {
     return (
       <button
         disabled
-        className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg text-gray-400"
+        className="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-800 rounded-lg text-gray-500 dark:text-gray-400"
       >
         <Loader2 className="w-4 h-4 animate-spin" />
         Signing in...
@@ -100,7 +100,7 @@ export default function WalletConnectButton() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-colors"
+        className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors text-gray-900 dark:text-white border border-gray-300 dark:border-transparent"
       >
         <div className="w-2 h-2 rounded-full bg-green-500" />
         <span className="font-mono text-sm">{shortenAddress(publicKey.toBase58())}</span>
@@ -108,14 +108,14 @@ export default function WalletConnectButton() {
       </button>
 
       {showDropdown && (
-        <div className="absolute right-0 mt-2 w-56 bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden z-50">
-          <div className="p-3 border-b border-gray-700">
-            <p className="text-xs text-gray-400">Connected as</p>
-            <p className="font-mono text-sm truncate">{publicKey.toBase58()}</p>
+        <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg overflow-hidden z-50">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Connected as</p>
+            <p className="font-mono text-sm truncate text-gray-900 dark:text-white">{publicKey.toBase58()}</p>
           </div>
           <button
             onClick={handleDisconnect}
-            className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-700 text-red-400 transition-colors"
+            className="w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Disconnect
