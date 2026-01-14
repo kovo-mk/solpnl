@@ -596,13 +596,19 @@ async def get_wallet_portfolio(address: str, db: Session = Depends(get_db)):
     actual_balances = {}
     try:
         balance_data = await helius_service.get_wallet_balances(address)
+
+        # First, set all tracked tokens to 0 (to override transaction-calculated balances)
+        for mint in token_mints:
+            actual_balances[mint] = 0
+
+        # Then update with actual on-chain balances
         for token_balance in balance_data.get("tokens", []):
             mint = token_balance.get("mint")
-            balance = token_balance.get("balance", 0)  # Fixed: was "amount", should be "balance"
-            if mint and balance > 0:
+            balance = token_balance.get("balance", 0)
+            if mint:
                 actual_balances[mint] = balance
                 # Also add to token_mints if not already tracked
-                if mint not in token_mints:
+                if mint not in token_mints and balance > 0:
                     token_mints.append(mint)
     except Exception as e:
         logger.warning(f"Failed to fetch on-chain balances for {address}: {e}")
