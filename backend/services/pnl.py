@@ -228,19 +228,23 @@ class PnLCalculator:
                 holding["current_balance"] += amount
 
             elif tx_type in ["transfer_out", "other_out"]:
-                # Sent tokens to another wallet - realize P/L at $0 (transfer, not a sale)
-                # This removes the tokens from cost basis using FIFO
+                # Sent tokens to another wallet - this is a disposition
+                # Realize P/L at current market value (or $0 if unknown)
+                # Each wallet tracks its own P/L independently
                 pnl_sol, pnl_usd, remaining = self.calculate_realized_pnl(
                     sell_amount=amount,
-                    sell_price_sol=0,  # No SOL received (it's a transfer, not a sale)
+                    sell_price_sol=0,  # No SOL received, but it's still a disposition
                     cost_basis_lots=token_lots[token_mint],
                     sol_price_usd=sol_price_usd
                 )
 
                 token_lots[token_mint] = remaining
                 holding["current_balance"] -= amount
-                # Don't count transfer as realized P/L - it's not a sale
-                # The P/L stays unrealized until actual sell
+
+                # Realize the P/L from transferring out (disposition of asset)
+                # This represents the loss of cost basis from your wallet
+                holding["realized_pnl_sol"] += pnl_sol  # Will be negative (loss)
+                holding["realized_pnl_usd"] += pnl_usd  # Will be negative (loss)
 
                 # Recalculate total cost from remaining lots
                 holding["total_cost_sol"] = sum(
