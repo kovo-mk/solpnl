@@ -135,13 +135,21 @@ class HeliusService:
                     is_swap = True
                     logger.debug(f"Detected swap by transfer pattern: {signature[:8]}...")
 
-            # Also detect token-to-token swaps (2+ token transfers, wallet involved)
+            # Also detect token-to-token swaps (2+ token transfers, wallet involved, minimal native transfers)
+            # Only classify as swap if there are NO significant native SOL transfers (< 0.01 SOL)
             if not is_swap and len(token_transfers) >= 2:
                 wallet_involved = any(
                     t.get("fromUserAccount") == wallet_address or t.get("toUserAccount") == wallet_address
                     for t in token_transfers
                 )
-                if wallet_involved:
+                # Check if there are significant native transfers
+                total_native_transfer = sum(
+                    float(t.get("amount", 0) or 0) / 1e9
+                    for t in native_transfers
+                    if t.get("fromUserAccount") == wallet_address or t.get("toUserAccount") == wallet_address
+                )
+                # Only treat as token-to-token swap if native transfers are minimal (< 0.01 SOL, accounting for fees)
+                if wallet_involved and total_native_transfer < 0.01:
                     is_swap = True
                     logger.debug(f"Detected token-to-token swap by multiple token transfers: {signature[:8]}...")
 
