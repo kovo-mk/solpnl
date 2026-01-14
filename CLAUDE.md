@@ -133,6 +133,69 @@ className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-2
 
 ## Recent Changes (January 2026)
 
+### Session: January 14, 2026 - Token-to-Token Swap P/L Investigation (ONGOING)
+
+**Problem:** VXM (Volt) token shows incorrect P/L compared to Jupiter:
+- Jupiter: +$4,444.76 realized P/L
+- Our system: -$0.29 (or varies wildly with each attempt)
+- User wallet: `56YahmTzWix9nAYaeRKDMHZhyHZe6diU1tcgkBXA5iVt`
+- VXM mint: `FRsV3m924aGpLMuEekoo3JkkMt1oopaM4JY9ki5YLXrp`
+
+**Root Cause:** VXM swaps are token-to-token (e.g., XVM ↔ USDC), not XVM ↔ SOL. Our parser only tracked SOL swaps initially.
+
+**Work Completed:**
+1. ✅ Enhanced Helius parser to detect token-to-token swaps by checking for 2+ token transfers
+2. ✅ Added `other_token_mint` and `other_token_amount` fields to track the "other side" of swaps
+3. ✅ Calculate USD value from other token's current price (e.g., USDC at $1.00)
+4. ✅ Generate synthetic `price_sol` by dividing USD price by current SOL price
+5. ✅ Fixed timezone-aware datetime bug (changed `datetime.utcfromtimestamp` to `datetime.fromtimestamp(tz=timezone.utc)`)
+6. ✅ Refined swap detection to only trigger when native SOL transfers < 0.01 SOL
+
+**Files Modified:**
+- `backend/services/helius.py` - Enhanced transaction parser
+- `backend/api/routes.py` - Added USD price calculation for token-to-token swaps
+- `backend/services/pnl.py` - Extract other_token fields
+
+**Commits:**
+- `8b8869f` - Only detect token-to-token swaps when native transfers are minimal
+- `f4ef666` - Detect token-to-token swaps by checking for 2+ token transfers
+- `5b702df` - Detect token-to-token swaps for all transaction categories
+- `a7eafee` - Fix timezone-aware datetime comparison in sync
+- `419739d` - Re-enable database cleanup for full resyncs
+
+**Current Blocker:**
+Database sync failing with "duplicate key value violates unique constraint". The database cleanup (delete old transactions before re-insert) isn't working correctly, causing insert failures mid-sync.
+
+**Key Technical Insight - Historical USD Values:**
+We investigated whether historical USD values are available from various APIs:
+
+1. **Solana RPC:** Does NOT provide prices - only token amounts and transaction data
+2. **Helius Enhanced API:** Provides transaction data (token transfers, amounts, timestamps) but NO USD/price values
+3. **Current approach:** Using current token prices as approximations (likely same as Jupiter)
+
+**For token-to-token swaps (e.g., XVM → USDC):**
+- ✅ We CAN get accurate USD value: If sold for 980 USDC, that's exactly $980 (USDC ≈ $1)
+- ❌ We CANNOT get accurate SOL-denominated cost basis without historical SOL prices
+- Using current SOL price ($144) to calculate synthetic price_sol creates inaccuracies when historical SOL was $200+
+
+**Paid API Options Considered:**
+- **Birdeye Pro:** ~$49-199/month, has historical OHLCV price data, good for liquid tokens
+- **Solscan Pro:** Unknown pricing (need to contact), unclear if API returns historical USD values
+- **Helius Premium:** Need to check what additional data they provide
+
+**Next Steps (for Desktop session):**
+1. Fix database sync duplicate key error
+2. Decide on P/L calculation approach:
+   - Option A: Accept current prices for approximation (like Jupiter likely does)
+   - Option B: USD-only P/L (no SOL conversion) - more accurate
+   - Option C: Pay for Birdeye historical price data
+3. Test if VXM P/L matches Jupiter after fixes
+
+**Questions to Answer:**
+- How exactly does Jupiter calculate their P/L? (Assumption: current prices, but unconfirmed)
+- Should we prioritize USD P/L over SOL P/L?
+- Is $200/month API cost acceptable for historical price accuracy?
+
 ### Session: January 14, 2026 (Laptop Setup)
 
 **1. Fixed Light Mode Button Readability**
