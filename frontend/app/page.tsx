@@ -362,18 +362,26 @@ export default function Home() {
               <Wallet className="w-16 h-16 text-blue-400 dark:text-gray-600" />
             </div>
             <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">No wallets tracked</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6 text-center max-w-md">
-              Add your Solana wallet to start tracking your P/L across all tokens
-              you&apos;ve traded.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 dark:bg-sol-purple hover:bg-blue-700 dark:hover:bg-sol-purple/80 rounded-lg font-medium transition-colors text-white"
-            >
-              <Plus className="w-5 h-5" />
-              Add Your First Wallet
-            </button>
+            {isAuthenticated ? (
+              <>
+                <p className="text-gray-600 dark:text-gray-400 mb-6 text-center max-w-md">
+                  Add your Solana wallet to start tracking your P/L across all tokens
+                  you&apos;ve traded.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 dark:bg-sol-purple hover:bg-blue-700 dark:hover:bg-sol-purple/80 rounded-lg font-medium transition-colors text-white"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Your First Wallet
+                </button>
+              </>
+            ) : (
+              <p className="text-gray-600 dark:text-gray-400 mb-6 text-center max-w-md">
+                Please connect your wallet using the button in the top right to start tracking your P/L.
+              </p>
+            )}
           </div>
         )}
 
