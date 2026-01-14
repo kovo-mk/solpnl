@@ -394,23 +394,15 @@ async def sync_wallet_transactions(wallet_address: str, wallet_id: int, incremen
     db = SessionLocal()
 
     try:
-        # For full resync, clean up old data first
-        if not incremental:
-            logger.info(f"Full resync requested - clearing old data for wallet {wallet_address}")
-            sync_status[wallet_address]["message"] = "Clearing old data..."
-
-            # Delete old holdings
-            db.query(WalletTokenHolding).filter(
-                WalletTokenHolding.wallet_id == wallet_id
-            ).delete()
-
-            # Delete old transactions
-            db.query(Transaction).filter(
-                Transaction.wallet_id == wallet_id
-            ).delete()
-
-            db.commit()
-            logger.info("Old data cleared successfully")
+        # NOTE: Database cleanup disabled - Helius API can't reliably fetch 7K+ transactions
+        # TODO: Implement proper pagination or use RPC balance as source of truth
+        # if not incremental:
+        #     logger.info(f"Full resync requested - clearing old data for wallet {wallet_address}")
+        #     sync_status[wallet_address]["message"] = "Clearing old data..."
+        #     db.query(WalletTokenHolding).filter(WalletTokenHolding.wallet_id == wallet_id).delete()
+        #     db.query(Transaction).filter(Transaction.wallet_id == wallet_id).delete()
+        #     db.commit()
+        #     logger.info("Old data cleared successfully")
 
         # For incremental sync, find the most recent transaction timestamp
         last_tx_time = None
