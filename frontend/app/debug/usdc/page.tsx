@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+
+// Disable static generation for this page since it uses searchParams
+export const dynamic = 'force-dynamic';
 
 interface Transaction {
   signature: string;
