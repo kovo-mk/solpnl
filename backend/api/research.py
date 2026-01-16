@@ -293,28 +293,45 @@ async def run_token_analysis(request_id: int, token_address: str):
         # 2. Get token mint info (authorities)
         mint_info = await helius.get_token_mint_info(token_address)
 
-        # 3. Get contract metadata
+        # 3. Get DexScreener data (price, liquidity, socials)
+        logger.info(f"Fetching DexScreener data for {token_address}")
+        dex_data = await helius.get_dexscreener_data(token_address)
+
+        # 4. Get contract metadata
         contract_info = await helius.get_token_metadata(token_address)
 
-        # Merge mint info into contract info
+        # Merge all data into contract_info
         contract_info["has_freeze_authority"] = mint_info.get("freeze_authority") is not None
         contract_info["has_mint_authority"] = mint_info.get("mint_authority") is not None
         contract_info["decimals"] = mint_info.get("decimals", contract_info.get("decimals", 9))
+        contract_info["price_usd"] = dex_data.get("price_usd", 0)
+        contract_info["volume_24h"] = dex_data.get("volume_24h", 0)
+        contract_info["liquidity_usd"] = dex_data.get("liquidity_usd", 0)
+        contract_info["market_cap"] = dex_data.get("market_cap", 0)
 
-        # Detect pump.fun tokens (they use a specific program)
-        # Pump.fun program: 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P
+        # Detect pump.fun tokens
         contract_info["is_pump_fun"] = contract_info.get("name", "").lower().endswith("pump") or \
-                                       "pump.fun" in contract_info.get("description", "").lower()
+                                       "pump.fun" in contract_info.get("description", "").lower() or \
+                                       dex_data.get("dex", "").lower() == "raydium" and dex_data.get("pair_created_at", 0) > 1700000000
 
-        # 3. Run fraud analysis
+        # Build social data from DexScreener
+        social_data = {}
+        if dex_data.get("twitter"):
+            social_data["twitter_url"] = dex_data["twitter"]
+        if dex_data.get("telegram"):
+            social_data["telegram_url"] = dex_data["telegram"]
+        if dex_data.get("website"):
+            social_data["website"] = dex_data["website"]
+
+        # 5. Run fraud analysis
         logger.info(f"Running fraud analysis for {token_address}")
         analysis_result = await analyzer.analyze_token(
             token_address=token_address,
             holder_data=holder_data,
             total_supply=contract_info.get("total_supply", 0),
             contract_info=contract_info,
-            social_data=None,  # TODO: Add Twitter/Telegram scraping
-            github_data=None,  # TODO: Add GitHub analysis
+            social_data=social_data if social_data else None,
+            github_data=None,
         )
 
         # 4. Create or update token record
@@ -330,6 +347,13 @@ async def run_token_analysis(request_id: int, token_address: str):
             db.commit()
 
         # 5. Create analysis report
+        # Extract Twitter handle from URL if available
+        twitter_handle = None
+        if social_data.get("twitter_url"):
+            twitter_url = social_data["twitter_url"]
+            if "twitter.com/" in twitter_url or "x.com/" in twitter_url:
+                twitter_handle = twitter_url.split("/")[-1].replace("@", "")
+
         report = TokenAnalysisReport(
             token_address=token_address,
             risk_score=analysis_result["risk_score"],
@@ -343,6 +367,8 @@ async def run_token_analysis(request_id: int, token_address: str):
             is_pump_fun=contract_info.get("is_pump_fun", False),
             has_freeze_authority=contract_info.get("has_freeze_authority"),
             has_mint_authority=contract_info.get("has_mint_authority"),
+            twitter_handle=twitter_handle,
+            telegram_group=social_data.get("telegram_url") if social_data else None,
             claude_summary=analysis_result["claude_summary"],
             claude_verdict=analysis_result["claude_verdict"],
             cached_until=datetime.now(timezone.utc) + timedelta(hours=24),  # Cache for 24h

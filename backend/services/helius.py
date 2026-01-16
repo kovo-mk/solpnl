@@ -749,6 +749,72 @@ class HeliusService:
             logger.error(f"Error fetching mint info: {e}")
             return {}
 
+    async def get_dexscreener_data(self, token_address: str) -> Dict[str, Any]:
+        """
+        Fetch token data from DexScreener API (free, no API key needed).
+
+        Args:
+            token_address: Token mint address
+
+        Returns:
+            Dict with price, volume, liquidity, social links
+        """
+        try:
+            url = f"https://api.dexscreener.com/latest/dex/tokens/{token_address}"
+            timeout = aiohttp.ClientTimeout(total=10)
+
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        logger.warning(f"DexScreener returned {response.status} for {token_address}")
+                        return {}
+
+                    data = await response.json()
+                    pairs = data.get("pairs", [])
+
+                    if not pairs:
+                        logger.info(f"No DexScreener data found for {token_address}")
+                        return {}
+
+                    # Get the most liquid pair (usually the main trading pair)
+                    main_pair = max(pairs, key=lambda p: float(p.get("liquidity", {}).get("usd", 0) or 0))
+
+                    # Extract social links
+                    info = main_pair.get("info", {})
+                    websites = info.get("websites", [])
+                    socials = info.get("socials", [])
+
+                    website = websites[0].get("url") if websites else None
+                    twitter = None
+                    telegram = None
+
+                    for social in socials:
+                        social_type = social.get("type", "").lower()
+                        if social_type == "twitter":
+                            twitter = social.get("url")
+                        elif social_type == "telegram":
+                            telegram = social.get("url")
+
+                    return {
+                        "price_usd": float(main_pair.get("priceUsd", 0) or 0),
+                        "price_native": float(main_pair.get("priceNative", 0) or 0),
+                        "volume_24h": float(main_pair.get("volume", {}).get("h24", 0) or 0),
+                        "liquidity_usd": float(main_pair.get("liquidity", {}).get("usd", 0) or 0),
+                        "market_cap": float(main_pair.get("marketCap", 0) or 0),
+                        "fdv": float(main_pair.get("fdv", 0) or 0),
+                        "dex": main_pair.get("dexId", "unknown"),
+                        "pair_address": main_pair.get("pairAddress"),
+                        "price_change_24h": float(main_pair.get("priceChange", {}).get("h24", 0) or 0),
+                        "website": website,
+                        "twitter": twitter,
+                        "telegram": telegram,
+                        "pair_created_at": main_pair.get("pairCreatedAt"),
+                    }
+
+        except Exception as e:
+            logger.error(f"Error fetching DexScreener data: {e}")
+            return {}
+
 
 # Singleton instance
 helius_service = HeliusService()
