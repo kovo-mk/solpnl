@@ -216,24 +216,24 @@ export default function Home() {
               </div>
 
               {/* Desktop Nav Tabs */}
-              <nav className="hidden md:flex items-center gap-1">
+              <nav className="hidden md:flex items-center gap-2 ml-8">
                 <Link
                   href="/"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-blue-600 dark:text-white bg-blue-50 dark:bg-gray-800"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
                 >
                   <Wallet className="w-4 h-4" />
                   Portfolio
                 </Link>
                 <Link
                   href="/research"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all"
                 >
                   <Search className="w-4 h-4" />
                   Research
                 </Link>
                 <Link
                   href="/pnl"
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all"
                 >
                   <LineChart className="w-4 h-4" />
                   P&L
@@ -289,28 +289,28 @@ export default function Home() {
       </header>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-800 z-50 safe-area-pb transition-colors">
-        <div className="flex items-center justify-around py-2 px-2">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900/98 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 z-50 safe-area-pb transition-colors shadow-lg">
+        <div className="flex items-center justify-around py-3 px-4">
           <Link
             href="/"
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-blue-600 dark:text-sol-purple"
+            className="flex flex-col items-center gap-1 px-4 py-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
           >
             <Wallet className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Portfolio</span>
+            <span className="text-xs font-medium">Portfolio</span>
           </Link>
           <Link
             href="/research"
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
+            className="flex flex-col items-center gap-1 px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all"
           >
             <Search className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Research</span>
+            <span className="text-xs font-medium">Research</span>
           </Link>
           <Link
             href="/pnl"
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
+            className="flex flex-col items-center gap-1 px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all"
           >
             <LineChart className="w-5 h-5" />
-            <span className="text-[10px] font-medium">P&L</span>
+            <span className="text-xs font-medium">P&L</span>
           </Link>
           <button
             type="button"
