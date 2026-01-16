@@ -176,7 +176,7 @@ export default function TokenPnLTable({ tokens, walletAddress }: TokenPnLTablePr
                       'text-xs',
                       totalPnL >= 0 ? 'text-green-400/70' : 'text-red-400/70'
                     )}>
-                      {token.pnl_percentage !== undefined && formatPercentage(token.pnl_percentage)}
+                      {token.unrealized_pnl_percent !== null && token.unrealized_pnl_percent !== undefined && formatPercentage(token.unrealized_pnl_percent)}
                     </p>
                   </div>
 

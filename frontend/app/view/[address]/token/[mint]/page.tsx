@@ -188,7 +188,7 @@ export default function TokenDetailPage() {
                 'text-xs mt-1',
                 (token.unrealized_pnl_usd || 0) >= 0 ? 'text-green-400/70' : 'text-red-400/70'
               )}>
-                {formatPercentage(token.unrealized_pnl_percentage || 0)}
+                {formatPercentage(token.unrealized_pnl_percent || 0)}
               </p>
             </div>
             <div className="bg-gray-900/50 rounded-lg p-4">
@@ -203,7 +203,7 @@ export default function TokenDetailPage() {
                 'text-xs mt-1',
                 (token.realized_pnl_usd || 0) >= 0 ? 'text-green-400/70' : 'text-red-400/70'
               )}>
-                {formatPercentage(token.realized_pnl_percentage || 0)}
+                {formatPercentage(token.unrealized_pnl_percent || 0)}
               </p>
             </div>
           </div>
