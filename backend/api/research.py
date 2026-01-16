@@ -17,7 +17,7 @@ from services.helius import HeliusService
 from config import settings
 
 
-router = APIRouter(prefix="/api/research", tags=["research"])
+router = APIRouter(prefix="/research", tags=["research"])
 
 
 # Request/Response models
