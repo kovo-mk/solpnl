@@ -48,7 +48,7 @@ interface DebugData {
   transaction_count: number;
 }
 
-export default function USDCDebugPage() {
+function USDCDebugContent() {
   const searchParams = useSearchParams();
   const [data, setData] = useState<DebugData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -305,5 +305,21 @@ export default function USDCDebugPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function USDCDebugPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+        <div className="max-w-6xl mx-auto">
+          <h1 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+            Loading...
+          </h1>
+        </div>
+      </div>
+    }>
+      <USDCDebugContent />
+    </Suspense>
   );
 }
