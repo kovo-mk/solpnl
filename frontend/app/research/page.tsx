@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Search, Twitter, Wallet, FileText, AlertCircle } from 'lucide-react';
 
 interface RedFlag {
   severity: string;
@@ -31,15 +32,18 @@ interface TokenReport {
   updated_at: string;
 }
 
+type SearchType = 'token' | 'twitter' | 'wallet';
+
 export default function ResearchPage() {
-  const [tokenAddress, setTokenAddress] = useState('');
+  const [searchType, setSearchType] = useState<SearchType>('token');
+  const [searchValue, setSearchValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<TokenReport | null>(null);
   const [error, setError] = useState('');
 
   const analyzeToken = async () => {
-    if (!tokenAddress.trim()) {
-      setError('Please enter a token address');
+    if (!searchValue.trim()) {
+      setError('Please enter a search value');
       return;
     }
 
@@ -48,11 +52,17 @@ export default function ResearchPage() {
     setReport(null);
 
     try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+
       // 1. Submit analysis request
-      const response = await fetch('http://localhost:8000/api/research/analyze', {
+      const response = await fetch(`${API_BASE}/research/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token_address: tokenAddress.trim() }),
+        body: JSON.stringify({
+          token_address: searchType === 'token' ? searchValue.trim() : undefined,
+          twitter_handle: searchType === 'twitter' ? searchValue.trim() : undefined,
+          wallet_address: searchType === 'wallet' ? searchValue.trim() : undefined,
+        }),
       });
 
       if (!response.ok) {
@@ -63,7 +73,7 @@ export default function ResearchPage() {
 
       // 2. Poll for completion
       const checkStatus = async (): Promise<void> => {
-        const statusRes = await fetch(`http://localhost:8000/api/research/status/${request_id}`);
+        const statusRes = await fetch(`${API_BASE}/research/status/${request_id}`);
 
         if (!statusRes.ok) {
           throw new Error('Failed to check status');
@@ -73,7 +83,7 @@ export default function ResearchPage() {
 
         if (status.status === 'completed') {
           // 3. Fetch full report
-          const reportRes = await fetch(`http://localhost:8000/api/research/report/${status.report_id}`);
+          const reportRes = await fetch(`${API_BASE}/research/report/${status.report_id}`);
 
           if (!reportRes.ok) {
             throw new Error('Failed to fetch report');
@@ -101,226 +111,293 @@ export default function ResearchPage() {
   const getRiskColor = (level: string) => {
     switch (level) {
       case 'critical':
-        return 'text-red-600';
+        return 'text-red-600 dark:text-red-400';
       case 'high':
-        return 'text-orange-600';
+        return 'text-orange-600 dark:text-orange-400';
       case 'medium':
-        return 'text-yellow-600';
+        return 'text-yellow-600 dark:text-yellow-400';
       default:
-        return 'text-green-600';
+        return 'text-green-600 dark:text-green-400';
     }
   };
 
   const getRiskBgColor = (level: string) => {
     switch (level) {
       case 'critical':
-        return 'bg-red-50 border-red-200';
+        return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
       case 'high':
-        return 'bg-orange-50 border-orange-200';
+        return 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800';
       case 'medium':
-        return 'bg-yellow-50 border-yellow-200';
+        return 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800';
       default:
-        return 'bg-green-50 border-green-200';
+        return 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800';
     }
   };
 
   const getFlagBgColor = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return 'bg-red-50 border-l-4 border-red-600';
+        return 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-600 dark:border-red-500';
       case 'high':
-        return 'bg-orange-50 border-l-4 border-orange-600';
+        return 'bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-600 dark:border-orange-500';
       case 'medium':
-        return 'bg-yellow-50 border-l-4 border-yellow-600';
+        return 'bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-600 dark:border-yellow-500';
       default:
-        return 'bg-blue-50 border-l-4 border-blue-600';
+        return 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600 dark:border-blue-500';
+    }
+  };
+
+  const getPlaceholder = () => {
+    switch (searchType) {
+      case 'token':
+        return 'Enter token address (e.g., CYtqp57NEdyetzbDfxVoJ19MWHvvVCQBL9jfFjXWpump)';
+      case 'twitter':
+        return 'Enter Twitter/X handle (e.g., @elonmusk or elonmusk)';
+      case 'wallet':
+        return 'Enter wallet address (e.g., 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU)';
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Token Research</h1>
-        <p className="text-gray-600">
-          Analyze any Solana token for fraud patterns, holder concentration, and risk factors
-        </p>
-      </div>
-
-      {/* Search Form */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Token Address
-        </label>
-        <div className="flex gap-3">
-          <input
-            type="text"
-            value={tokenAddress}
-            onChange={(e) => setTokenAddress(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && analyzeToken()}
-            placeholder="Enter Solana token mint address..."
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            disabled={loading}
-          />
-          <button
-            onClick={analyzeToken}
-            disabled={loading || !tokenAddress.trim()}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? 'Analyzing...' : 'Analyze'}
-          </button>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-3 text-gray-900 dark:text-white">Token Research</h1>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">
+            AI-powered analysis to detect fraud patterns, holder concentration, and risk factors
+          </p>
         </div>
 
-        {error && (
-          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {error}
-          </div>
-        )}
-
-        {/* Example Tokens */}
-        <div className="mt-4">
-          <p className="text-xs text-gray-500 mb-2">Try these examples:</p>
-          <div className="flex gap-2 flex-wrap">
+        {/* Search Form */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8 border border-gray-200 dark:border-gray-700">
+          {/* Search Type Tabs */}
+          <div className="flex gap-2 mb-4">
             <button
-              onClick={() => setTokenAddress('CYtqp57NEdyetzbDfxVoJ19MWHvvVCQBL9jfFjXWpump')}
-              className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
-              disabled={loading}
+              onClick={() => setSearchType('token')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                searchType === 'token'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
             >
-              Oxedium (High Risk Example)
+              <FileText className="w-4 h-4" />
+              Token Address
+            </button>
+            <button
+              onClick={() => setSearchType('twitter')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                searchType === 'twitter'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              <Twitter className="w-4 h-4" />
+              Twitter/X
+            </button>
+            <button
+              onClick={() => setSearchType('wallet')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                searchType === 'wallet'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              <Wallet className="w-4 h-4" />
+              Wallet Address
             </button>
           </div>
-        </div>
-      </div>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="bg-white rounded-lg shadow-md p-12 text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-600">Analyzing token...</p>
-          <p className="text-sm text-gray-500 mt-2">This may take 10-30 seconds</p>
-        </div>
-      )}
-
-      {/* Report Display */}
-      {report && !loading && (
-        <div className="space-y-6">
-          {/* Risk Score Card */}
-          <div className={`rounded-lg shadow-md p-6 border-2 ${getRiskBgColor(report.risk_level)}`}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className={`text-6xl font-bold ${getRiskColor(report.risk_level)}`}>
-                  {report.risk_score}
-                  <span className="text-2xl text-gray-500">/100</span>
-                </div>
-                <div className="text-xl font-medium text-gray-700 mt-2">
-                  Risk Level: <span className={getRiskColor(report.risk_level)}>{report.risk_level.toUpperCase()}</span>
-                </div>
-              </div>
-              <div className={`px-4 py-2 rounded-full text-sm font-medium ${
-                report.verdict === 'safe' ? 'bg-green-200 text-green-800' :
-                report.verdict === 'suspicious' ? 'bg-yellow-200 text-yellow-800' :
-                report.verdict === 'likely_scam' ? 'bg-orange-200 text-orange-800' :
-                'bg-red-200 text-red-800'
-              }`}>
-                {report.verdict.replace('_', ' ').toUpperCase()}
-              </div>
-            </div>
-            <p className="text-gray-700 text-lg">{report.summary}</p>
+          {/* Search Input */}
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && analyzeToken()}
+              placeholder={getPlaceholder()}
+              className="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+              disabled={loading}
+            />
+            <button
+              onClick={analyzeToken}
+              disabled={loading || !searchValue.trim()}
+              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+            >
+              <Search className="w-5 h-5" />
+              {loading ? 'Analyzing...' : 'Analyze'}
+            </button>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <div className="text-sm text-gray-500 mb-1">Total Holders</div>
-              <div className="text-3xl font-bold">{report.total_holders.toLocaleString()}</div>
-            </div>
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <div className="text-sm text-gray-500 mb-1">Top 10 Hold</div>
-              <div className="text-3xl font-bold">{report.top_10_holder_percentage.toFixed(1)}%</div>
-            </div>
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <div className="text-sm text-gray-500 mb-1">Whales (&gt;5%)</div>
-              <div className="text-3xl font-bold">{report.whale_count}</div>
-            </div>
-            <div className="bg-white rounded-lg shadow-md p-4">
-              <div className="text-sm text-gray-500 mb-1">Token Type</div>
-              <div className="text-lg font-bold mt-2">
-                {report.is_pump_fun ? '🚀 Pump.fun' : '📝 Custom'}
-              </div>
-            </div>
-          </div>
-
-          {/* Red Flags */}
-          {report.red_flags.length > 0 && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-2xl font-bold mb-4 flex items-center">
-                <span className="mr-2">🚩</span> Red Flags ({report.red_flags.length})
-              </h3>
-              <div className="space-y-3">
-                {report.red_flags.map((flag, i) => (
-                  <div key={i} className={`p-4 rounded-lg ${getFlagBgColor(flag.severity)}`}>
-                    <div className="flex items-start justify-between mb-1">
-                      <div className="font-bold text-gray-900">{flag.title}</div>
-                      <span className="text-xs font-medium px-2 py-1 rounded-full bg-white">
-                        {flag.severity.toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-700">{flag.description}</div>
-                  </div>
-                ))}
-              </div>
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
             </div>
           )}
 
-          {/* Contract Details */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-2xl font-bold mb-4">Contract Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Freeze Authority</div>
-                <div className="font-medium">
-                  {report.has_freeze_authority === true ? '❌ Enabled' :
-                   report.has_freeze_authority === false ? '✅ Disabled' :
-                   '❓ Unknown'}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Mint Authority</div>
-                <div className="font-medium">
-                  {report.has_mint_authority === true ? '❌ Enabled' :
-                   report.has_mint_authority === false ? '✅ Disabled' :
-                   '❓ Unknown'}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-500 mb-1">Token Address</div>
-                <div className="font-mono text-xs truncate">{report.token_address}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Share/Export */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-xl font-bold mb-3">Share Report</h3>
-            <div className="flex gap-3">
+          {/* Example Tokens */}
+          <div className="mt-5 pt-5 border-t border-gray-200 dark:border-gray-700">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-medium">Try these examples:</p>
+            <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => navigator.clipboard.writeText(window.location.href)}
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors"
+                onClick={() => {
+                  setSearchType('token');
+                  setSearchValue('CYtqp57NEdyetzbDfxVoJ19MWHvvVCQBL9jfFjXWpump');
+                }}
+                className="text-sm px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                disabled={loading}
               >
-                📋 Copy Link
+                Oxedium (High Risk Token)
               </button>
               <button
                 onClick={() => {
-                  const text = `Token Analysis Report\n\nRisk Score: ${report.risk_score}/100 (${report.risk_level})\n\n${report.summary}\n\nAnalyze tokens yourself at: ${window.location.origin}`;
-                  navigator.clipboard.writeText(text);
+                  setSearchType('twitter');
+                  setSearchValue('@pumpdotfun');
                 }}
-                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
+                className="text-sm px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+                disabled={loading}
               >
-                📱 Copy for Telegram
+                @pumpdotfun (Twitter)
               </button>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center border border-gray-200 dark:border-gray-700">
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-gray-200 dark:border-gray-700 border-t-blue-600 mb-4"></div>
+            <p className="text-gray-900 dark:text-white font-medium text-lg">Analyzing token...</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">This may take 10-30 seconds</p>
+          </div>
+        )}
+
+        {/* Report Display */}
+        {report && !loading && (
+          <div className="space-y-6">
+            {/* Risk Score Card */}
+            <div className={`rounded-xl shadow-lg p-8 border-2 ${getRiskBgColor(report.risk_level)}`}>
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <div className={`text-7xl font-bold ${getRiskColor(report.risk_level)}`}>
+                    {report.risk_score}
+                    <span className="text-3xl text-gray-500 dark:text-gray-400">/100</span>
+                  </div>
+                  <div className="text-xl font-medium text-gray-700 dark:text-gray-300 mt-3">
+                    Risk Level: <span className={getRiskColor(report.risk_level)}>{report.risk_level.toUpperCase()}</span>
+                  </div>
+                </div>
+                <div className={`px-6 py-3 rounded-full text-sm font-bold shadow-md ${
+                  report.verdict === 'safe' ? 'bg-green-200 dark:bg-green-900 text-green-800 dark:text-green-200' :
+                  report.verdict === 'suspicious' ? 'bg-yellow-200 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200' :
+                  report.verdict === 'likely_scam' ? 'bg-orange-200 dark:bg-orange-900 text-orange-800 dark:text-orange-200' :
+                  'bg-red-200 dark:bg-red-900 text-red-800 dark:text-red-200'
+                }`}>
+                  {report.verdict.replace('_', ' ').toUpperCase()}
+                </div>
+              </div>
+              <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">{report.summary}</p>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Holders</div>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">{report.total_holders.toLocaleString()}</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Top 10 Concentration</div>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">{report.top_10_holder_percentage.toFixed(1)}%</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Whale Count</div>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">{report.whale_count}</div>
+              </div>
+            </div>
+
+            {/* Red Flags */}
+            {report.red_flags.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🚩 Red Flags</h2>
+                <div className="space-y-3">
+                  {report.red_flags.map((flag, idx) => (
+                    <div key={idx} className={`p-4 rounded-lg ${getFlagBgColor(flag.severity)}`}>
+                      <div className="font-semibold text-gray-900 dark:text-white mb-1">{flag.title}</div>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">{flag.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Suspicious Patterns */}
+            {report.suspicious_patterns.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">⚠️ Suspicious Patterns</h2>
+                <ul className="space-y-2">
+                  {report.suspicious_patterns.map((pattern, idx) => (
+                    <li key={idx} className="flex items-start gap-3 text-gray-700 dark:text-gray-300">
+                      <span className="text-orange-500 mt-1">•</span>
+                      <span>{pattern}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Social/Technical Info */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Social */}
+              {(report.twitter_handle || report.telegram_members) && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Social Media</h3>
+                  <div className="space-y-3">
+                    {report.twitter_handle && (
+                      <div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Twitter</div>
+                        <div className="text-gray-900 dark:text-white font-medium">
+                          {report.twitter_handle} ({report.twitter_followers?.toLocaleString() || 0} followers)
+                        </div>
+                      </div>
+                    )}
+                    {report.telegram_members && (
+                      <div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Telegram</div>
+                        <div className="text-gray-900 dark:text-white font-medium">
+                          {report.telegram_members.toLocaleString()} members
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Technical */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Technical Info</h3>
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Pump.fun Token</div>
+                    <div className="text-gray-900 dark:text-white font-medium">{report.is_pump_fun ? 'Yes' : 'No'}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Freeze Authority</div>
+                    <div className="text-gray-900 dark:text-white font-medium">
+                      {report.has_freeze_authority === null ? 'Unknown' : report.has_freeze_authority ? 'Enabled ⚠️' : 'Disabled ✓'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Mint Authority</div>
+                    <div className="text-gray-900 dark:text-white font-medium">
+                      {report.has_mint_authority === null ? 'Unknown' : report.has_mint_authority ? 'Enabled ⚠️' : 'Disabled ✓'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
