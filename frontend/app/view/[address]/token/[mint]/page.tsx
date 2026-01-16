@@ -169,7 +169,7 @@ export default function TokenDetailPage() {
                 'text-sm mt-1',
                 totalPnL >= 0 ? 'text-green-400' : 'text-red-400'
               )}>
-                {token.pnl_percentage !== undefined && formatPercentage(token.pnl_percentage)}
+                {token.unrealized_pnl_percent !== null && token.unrealized_pnl_percent !== undefined && formatPercentage(token.unrealized_pnl_percent)}
               </p>
             </div>
           </div>
