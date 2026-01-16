@@ -48,8 +48,7 @@ if settings.frontend_url:
     settings.cors_origins.append(settings.frontend_url)
 
 # Log configuration (mask sensitive data)
-import logging
-logger = logging.getLogger(__name__)
+from loguru import logger
 logger.info(f"ANTHROPIC_API_KEY loaded: {bool(settings.anthropic_api_key)}")
 if settings.anthropic_api_key:
     logger.info(f"ANTHROPIC_API_KEY prefix: {settings.anthropic_api_key[:10]}...")
