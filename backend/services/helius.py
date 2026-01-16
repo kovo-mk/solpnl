@@ -598,7 +598,7 @@ class HeliusService:
 
     async def get_token_holders(self, token_mint: str, limit: int = 1000) -> List[Dict[str, Any]]:
         """
-        Fetch token holder data for a specific token mint.
+        Fetch token holder data for a specific token mint using Solana RPC.
 
         Args:
             token_mint: Token mint address
@@ -607,60 +607,66 @@ class HeliusService:
         Returns:
             List of {address, balance, percentage} dicts sorted by balance descending
         """
-        if not self.api_key:
-            logger.error("No Helius API key configured")
-            return []
-
         try:
-            # Use Helius DAS API to get token accounts
-            url = f"{self.base_url}/v0/token-metadata"
-            params = {
-                "api-key": self.api_key,
-                "mint": token_mint,
-            }
-
             timeout = aiohttp.ClientTimeout(total=60)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                # First get total supply
-                metadata_response = await session.get(url, params=params)
-                if metadata_response.status != 200:
-                    logger.error(f"Failed to fetch token metadata: {metadata_response.status}")
-                    return []
-
-                metadata = await metadata_response.json()
-                total_supply = metadata.get("supply", 0)
-
-                if total_supply == 0:
-                    logger.warning(f"Token {token_mint} has zero supply")
-                    return []
-
-                # Get largest token accounts via RPC
-                rpc_payload = {
+                # Step 1: Get token supply from mint account
+                supply_payload = {
                     "jsonrpc": "2.0",
                     "id": 1,
+                    "method": "getTokenSupply",
+                    "params": [token_mint]
+                }
+
+                async with session.post(self.rpc_url, json=supply_payload) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to fetch token supply: {response.status}")
+                        return []
+
+                    supply_data = await response.json()
+                    if "error" in supply_data:
+                        logger.error(f"RPC error fetching supply: {supply_data['error']}")
+                        return []
+
+                    supply_result = supply_data.get("result", {}).get("value", {})
+                    total_supply = float(supply_result.get("amount", 0))
+                    decimals = supply_result.get("decimals", 9)
+
+                    if total_supply == 0:
+                        logger.warning(f"Token {token_mint} has zero supply")
+                        return []
+
+                # Step 2: Get largest token accounts
+                accounts_payload = {
+                    "jsonrpc": "2.0",
+                    "id": 2,
                     "method": "getTokenLargestAccounts",
                     "params": [token_mint]
                 }
 
-                async with session.post(self.rpc_url, json=rpc_payload) as response:
+                async with session.post(self.rpc_url, json=accounts_payload) as response:
                     if response.status != 200:
                         logger.error(f"Failed to fetch largest accounts: {response.status}")
                         return []
 
-                    data = await response.json()
-                    accounts = data.get("result", {}).get("value", [])
+                    accounts_data = await response.json()
+                    if "error" in accounts_data:
+                        logger.error(f"RPC error fetching accounts: {accounts_data['error']}")
+                        return []
+
+                    accounts = accounts_data.get("result", {}).get("value", [])
 
                     holders = []
-                    for account in accounts[:limit]:
+                    # Step 3: Get owner for each token account
+                    for account in accounts[:min(limit, 20)]:  # Limit to top 20 to avoid too many requests
                         amount = account.get("amount")
-                        decimals = account.get("decimals", 9)
                         address = account.get("address")
 
                         if amount and address:
                             # Get owner of this token account
                             owner_payload = {
                                 "jsonrpc": "2.0",
-                                "id": 2,
+                                "id": 3,
                                 "method": "getAccountInfo",
                                 "params": [address, {"encoding": "jsonParsed"}]
                             }
@@ -668,19 +674,20 @@ class HeliusService:
                             async with session.post(self.rpc_url, json=owner_payload) as owner_response:
                                 if owner_response.status == 200:
                                     owner_data = await owner_response.json()
-                                    owner_info = owner_data.get("result", {}).get("value", {}).get("data", {})
-                                    parsed = owner_info.get("parsed", {})
-                                    owner_address = parsed.get("info", {}).get("owner", address)
+                                    if "error" not in owner_data:
+                                        owner_info = owner_data.get("result", {}).get("value", {}).get("data", {})
+                                        parsed = owner_info.get("parsed", {})
+                                        owner_address = parsed.get("info", {}).get("owner", address)
 
-                                    balance = float(amount) / (10 ** decimals)
-                                    percentage = (balance / (total_supply / (10 ** decimals))) * 100
+                                        balance = float(amount) / (10 ** decimals)
+                                        percentage = (balance / (total_supply / (10 ** decimals))) * 100
 
-                                    holders.append({
-                                        "address": owner_address,
-                                        "token_account": address,
-                                        "balance": balance,
-                                        "percentage": percentage,
-                                    })
+                                        holders.append({
+                                            "address": owner_address,
+                                            "token_account": address,
+                                            "balance": balance,
+                                            "percentage": percentage,
+                                        })
 
                     # Sort by balance descending
                     holders.sort(key=lambda x: x["balance"], reverse=True)
