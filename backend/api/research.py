@@ -290,8 +290,21 @@ async def run_token_analysis(request_id: int, token_address: str):
         if not holder_data:
             raise Exception("Failed to fetch holder data")
 
-        # 2. Get contract info
+        # 2. Get token mint info (authorities)
+        mint_info = await helius.get_token_mint_info(token_address)
+
+        # 3. Get contract metadata
         contract_info = await helius.get_token_metadata(token_address)
+
+        # Merge mint info into contract info
+        contract_info["has_freeze_authority"] = mint_info.get("freeze_authority") is not None
+        contract_info["has_mint_authority"] = mint_info.get("mint_authority") is not None
+        contract_info["decimals"] = mint_info.get("decimals", contract_info.get("decimals", 9))
+
+        # Detect pump.fun tokens (they use a specific program)
+        # Pump.fun program: 6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P
+        contract_info["is_pump_fun"] = contract_info.get("name", "").lower().endswith("pump") or \
+                                       "pump.fun" in contract_info.get("description", "").lower()
 
         # 3. Run fraud analysis
         logger.info(f"Running fraud analysis for {token_address}")

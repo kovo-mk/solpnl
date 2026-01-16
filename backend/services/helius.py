@@ -658,7 +658,7 @@ class HeliusService:
 
                     holders = []
                     # Step 3: Get owner for each token account
-                    for account in accounts[:min(limit, 20)]:  # Limit to top 20 to avoid too many requests
+                    for account in accounts[:min(limit, 100)]:  # Fetch top 100 holders
                         amount = account.get("amount")
                         address = account.get("address")
 
@@ -698,6 +698,56 @@ class HeliusService:
         except Exception as e:
             logger.error(f"Error fetching token holders: {e}")
             return []
+
+    async def get_token_mint_info(self, token_mint: str) -> Dict[str, Any]:
+        """
+        Fetch token mint information including freeze and mint authorities.
+
+        Args:
+            token_mint: Token mint address
+
+        Returns:
+            Dict with mint_authority, freeze_authority, decimals, supply
+        """
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getAccountInfo",
+                    "params": [
+                        token_mint,
+                        {
+                            "encoding": "jsonParsed"
+                        }
+                    ]
+                }
+
+                async with session.post(self.rpc_url, json=payload) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to fetch mint info: {response.status}")
+                        return {}
+
+                    data = await response.json()
+                    if "error" in data:
+                        logger.error(f"RPC error fetching mint info: {data['error']}")
+                        return {}
+
+                    result = data.get("result", {}).get("value", {})
+                    parsed = result.get("data", {}).get("parsed", {}).get("info", {})
+
+                    return {
+                        "mint_authority": parsed.get("mintAuthority"),
+                        "freeze_authority": parsed.get("freezeAuthority"),
+                        "decimals": parsed.get("decimals", 9),
+                        "supply": parsed.get("supply", "0"),
+                        "is_initialized": parsed.get("isInitialized", False),
+                    }
+
+        except Exception as e:
+            logger.error(f"Error fetching mint info: {e}")
+            return {}
 
 
 # Singleton instance
