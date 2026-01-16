@@ -29,8 +29,8 @@ interface HoldingSummary {
   total_sell_sol: number;
   realized_pnl_sol: number;
   realized_pnl_usd: number;
-  first_buy_at: string | null;
-  last_trade_at: string | null;
+  first_trade: string | null;
+  last_trade: string | null;
 }
 
 interface DebugData {
