@@ -273,8 +273,12 @@ Respond ONLY with valid JSON in this exact format:
 
         except Exception as e:
             logger.error(f"Claude analysis failed: {e}")
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error details: {str(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return {
-                "summary": "Analysis unavailable due to AI service error.",
+                "summary": f"Analysis unavailable due to AI service error: {type(e).__name__}",
                 "verdict": "unknown",
             }
 
