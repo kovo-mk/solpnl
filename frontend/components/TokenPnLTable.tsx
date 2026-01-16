@@ -151,7 +151,7 @@ export default function TokenPnLTable({ tokens, walletAddress }: TokenPnLTablePr
                   <div className="col-span-3 text-right">
                     {hasBalance ? (
                       <>
-                        <p className="font-semibold text-white">{formatCurrency(token.current_value_usd)}</p>
+                        <p className="font-semibold text-white">{formatCurrency(token.current_value_usd ?? 0)}</p>
                         <p className="text-xs text-gray-400">
                           {token.current_balance.toLocaleString(undefined, {
                             minimumFractionDigits: 0,
