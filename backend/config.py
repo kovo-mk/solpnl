@@ -13,8 +13,14 @@ class Settings(BaseSettings):
     # Helius API
     helius_api_key: str = ""
 
+    # Anthropic Claude API (for fraud detection)
+    anthropic_api_key: Optional[str] = None
+
     # Optional APIs
     solscan_api_key: Optional[str] = None
+
+    # Redis (for caching and rate limiting)
+    redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
 
     # Server
     host: str = "0.0.0.0"

@@ -225,6 +225,13 @@ export default function Home() {
                   Portfolio
                 </Link>
                 <Link
+                  href="/research"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <Search className="w-4 h-4" />
+                  Research
+                </Link>
+                <Link
                   href="/pnl"
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
                 >
@@ -290,6 +297,13 @@ export default function Home() {
           >
             <Wallet className="w-5 h-5" />
             <span className="text-[10px] font-medium">Portfolio</span>
+          </Link>
+          <Link
+            href="/research"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
+          >
+            <Search className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Research</span>
           </Link>
           <Link
             href="/pnl"

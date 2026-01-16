@@ -25,3 +25,7 @@ base58==2.1.1
 
 # CORS
 starlette==0.35.1
+
+# AI & Research Features
+anthropic==0.40.0
+redis==5.2.1

@@ -200,3 +200,159 @@ class WalletTokenHolding(Base):
     __table_args__ = (
         UniqueConstraint('wallet_id', 'token_id', name='unique_wallet_token'),
     )
+
+
+# ============================================================================
+# Token Research / Fraud Detection Models
+# ============================================================================
+
+class TokenAnalysisRequest(Base):
+    """User requests to analyze a token for fraud/risk."""
+    __tablename__ = "token_analysis_requests"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token_address = Column(String(255), nullable=False, index=True)
+
+    # Request metadata
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String(20), default="pending")  # pending, processing, completed, failed
+
+    # Analysis results reference
+    report_id = Column(Integer, ForeignKey("token_analysis_reports.id", ondelete="SET NULL"), nullable=True)
+
+    # Error tracking
+    error_message = Column(Text, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Relationships
+    user = relationship("User")
+    report = relationship("TokenAnalysisReport", back_populates="requests", foreign_keys=[report_id])
+
+    __table_args__ = (
+        Index('ix_analysis_requests_status_created', 'status', 'created_at'),
+    )
+
+
+class TokenAnalysisReport(Base):
+    """Comprehensive fraud analysis report for a token."""
+    __tablename__ = "token_analysis_reports"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token_address = Column(String(255), nullable=False, index=True)
+
+    # Risk scoring (0-100, higher = more risky)
+    risk_score = Column(Integer, nullable=False)
+    risk_level = Column(String(20), nullable=False)  # low, medium, high, critical
+
+    # Analysis results (JSON stored as text)
+    holder_concentration = Column(Text, nullable=True)  # JSON: top holder percentages
+    suspicious_patterns = Column(Text, nullable=True)   # JSON: array of detected patterns
+    red_flags = Column(Text, nullable=True)              # JSON: array of red flag objects
+
+    # Holder stats
+    total_holders = Column(Integer, nullable=True)
+    top_10_holder_percentage = Column(Float, nullable=True)
+    whale_count = Column(Integer, nullable=True)  # Holders with >5%
+
+    # Contract analysis
+    is_pump_fun = Column(Boolean, default=False)
+    contract_verified = Column(Boolean, default=False)
+    has_freeze_authority = Column(Boolean, nullable=True)
+    has_mint_authority = Column(Boolean, nullable=True)
+
+    # Social/external data
+    github_repo_url = Column(String(500), nullable=True)
+    twitter_handle = Column(String(100), nullable=True)
+    telegram_group = Column(String(500), nullable=True)
+
+    # GitHub analysis
+    github_commit_count = Column(Integer, nullable=True)
+    github_developer_count = Column(Integer, nullable=True)
+    github_created_at = Column(DateTime(timezone=True), nullable=True)
+    github_first_commit_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Social metrics
+    twitter_followers = Column(Integer, nullable=True)
+    telegram_members = Column(Integer, nullable=True)
+
+    # AI analysis summary
+    claude_summary = Column(Text, nullable=True)  # Claude's natural language analysis
+    claude_verdict = Column(String(50), nullable=True)  # safe, suspicious, likely_scam, confirmed_scam
+
+    # Cache control
+    is_stale = Column(Boolean, default=False)  # Mark for re-analysis
+    cached_until = Column(DateTime(timezone=True), nullable=True)  # Cache expiry
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    requests = relationship("TokenAnalysisRequest", back_populates="report", foreign_keys="TokenAnalysisRequest.report_id")
+    wallet_reputations = relationship("WalletReputation", back_populates="token_report")
+
+    __table_args__ = (
+        Index('ix_reports_token_created', 'token_address', 'created_at'),
+        Index('ix_reports_risk_score', 'risk_score'),
+    )
+
+
+class WalletReputation(Base):
+    """Reputation tracking for individual wallets (for Sybil/wash trading detection)."""
+    __tablename__ = "wallet_reputations"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(255), nullable=False, unique=True, index=True)
+
+    # Reputation metrics
+    reputation_score = Column(Integer, default=50)  # 0-100, 50=neutral, <30=suspicious
+
+    # Activity patterns
+    first_seen_at = Column(DateTime(timezone=True), nullable=True)
+    total_tokens_held = Column(Integer, default=0)
+    total_transactions = Column(Integer, default=0)
+
+    # Suspicious behavior flags
+    is_sybil_cluster = Column(Boolean, default=False)  # Part of coordinated wallet group
+    wash_trading_score = Column(Float, default=0.0)    # 0-1, higher = more suspicious
+    rapid_dump_count = Column(Integer, default=0)      # Number of tokens dumped <24h after buy
+
+    # Clustering info
+    cluster_id = Column(String(100), nullable=True)  # Group ID for related wallets
+    cluster_confidence = Column(Float, nullable=True)  # 0-1, how confident about clustering
+
+    # Analysis metadata
+    analyzed_in_report_id = Column(Integer, ForeignKey("token_analysis_reports.id", ondelete="SET NULL"), nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    # Relationships
+    token_report = relationship("TokenAnalysisReport", back_populates="wallet_reputations")
+
+    __table_args__ = (
+        Index('ix_wallet_reputation_score', 'reputation_score'),
+        Index('ix_wallet_sybil_cluster', 'is_sybil_cluster', 'cluster_id'),
+    )
+
+
+class RateLimit(Base):
+    """API rate limiting for analysis requests."""
+    __tablename__ = "rate_limits"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    identifier = Column(String(255), nullable=False, index=True)  # IP or user_id
+    endpoint = Column(String(100), nullable=False)  # /api/analyze, etc.
+
+    request_count = Column(Integer, default=1)
+    window_start = Column(DateTime(timezone=True), nullable=False)
+    window_end = Column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('identifier', 'endpoint', 'window_start', name='unique_rate_limit_window'),
+        Index('ix_rate_limit_window', 'identifier', 'endpoint', 'window_end'),
+    )
