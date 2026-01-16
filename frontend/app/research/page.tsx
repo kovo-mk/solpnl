@@ -32,18 +32,18 @@ interface TokenReport {
   updated_at: string;
 }
 
-type SearchType = 'token' | 'twitter' | 'wallet';
-
 export default function ResearchPage() {
-  const [searchType, setSearchType] = useState<SearchType>('token');
-  const [searchValue, setSearchValue] = useState('');
+  const [tokenAddress, setTokenAddress] = useState('');
+  const [twitterHandle, setTwitterHandle] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<TokenReport | null>(null);
   const [error, setError] = useState('');
 
   const analyzeToken = async () => {
-    if (!searchValue.trim()) {
-      setError('Please enter a search value');
+    // At least one field must be filled
+    if (!tokenAddress.trim() && !twitterHandle.trim() && !walletAddress.trim()) {
+      setError('Please enter at least one search parameter (token, Twitter, or wallet)');
       return;
     }
 
@@ -54,14 +54,14 @@ export default function ResearchPage() {
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
-      // 1. Submit analysis request
+      // 1. Submit analysis request with all provided fields
       const response = await fetch(`${API_BASE}/research/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          token_address: searchType === 'token' ? searchValue.trim() : undefined,
-          twitter_handle: searchType === 'twitter' ? searchValue.trim() : undefined,
-          wallet_address: searchType === 'wallet' ? searchValue.trim() : undefined,
+          token_address: tokenAddress.trim() || undefined,
+          twitter_handle: twitterHandle.trim() || undefined,
+          wallet_address: walletAddress.trim() || undefined,
         }),
       });
 
@@ -147,14 +147,15 @@ export default function ResearchPage() {
     }
   };
 
-  const getPlaceholder = () => {
-    switch (searchType) {
-      case 'token':
-        return 'Enter token address (e.g., CYtqp57NEdyetzbDfxVoJ19MWHvvVCQBL9jfFjXWpump)';
-      case 'twitter':
-        return 'Enter Twitter/X handle (e.g., @elonmusk or elonmusk)';
-      case 'wallet':
-        return 'Enter wallet address (e.g., 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU)';
+  const loadExample = (type: 'oxedium' | 'pumpdotfun') => {
+    if (type === 'oxedium') {
+      setTokenAddress('CYtqp57NEdyetzbDfxVoJ19MWHvvVCQBL9jfFjXWpump');
+      setTwitterHandle('');
+      setWalletAddress('');
+    } else {
+      setTokenAddress('');
+      setTwitterHandle('@pumpdotfun');
+      setWalletAddress('');
     }
   };
 
@@ -170,61 +171,67 @@ export default function ResearchPage() {
 
         {/* Search Form */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8 border border-gray-200 dark:border-gray-700">
-          {/* Search Type Tabs */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setSearchType('token')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                searchType === 'token'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              <FileText className="w-4 h-4" />
-              Token Address
-            </button>
-            <button
-              onClick={() => setSearchType('twitter')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                searchType === 'twitter'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              <Twitter className="w-4 h-4" />
-              Twitter/X
-            </button>
-            <button
-              onClick={() => setSearchType('wallet')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                searchType === 'wallet'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              <Wallet className="w-4 h-4" />
-              Wallet Address
-            </button>
-          </div>
+          <div className="space-y-4">
+            {/* Token Address Input */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <FileText className="w-4 h-4" />
+                Token Address
+              </label>
+              <input
+                type="text"
+                value={tokenAddress}
+                onChange={(e) => setTokenAddress(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && analyzeToken()}
+                placeholder="Enter Solana token mint address (e.g., CYtqp57NEdyetzbDfxVoJ19MWHvvVCQBL9jfFjXWpump)"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                disabled={loading}
+              />
+            </div>
 
-          {/* Search Input */}
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && analyzeToken()}
-              placeholder={getPlaceholder()}
-              className="flex-1 px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
-              disabled={loading}
-            />
+            {/* Twitter Handle Input */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <Twitter className="w-4 h-4" />
+                Twitter/X Handle (Optional)
+              </label>
+              <input
+                type="text"
+                value={twitterHandle}
+                onChange={(e) => setTwitterHandle(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && analyzeToken()}
+                placeholder="Enter Twitter handle (e.g., @pumpdotfun or pumpdotfun)"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                disabled={loading}
+              />
+            </div>
+
+            {/* Wallet Address Input */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <Wallet className="w-4 h-4" />
+                Wallet Address (Optional)
+              </label>
+              <input
+                type="text"
+                value={walletAddress}
+                onChange={(e) => setWalletAddress(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && analyzeToken()}
+                placeholder="Enter wallet address to analyze holdings (e.g., 7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU)"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                disabled={loading}
+              />
+            </div>
+
+            {/* Analyze Button */}
             <button
+              type="button"
               onClick={analyzeToken}
-              disabled={loading || !searchValue.trim()}
-              className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+              disabled={loading || (!tokenAddress.trim() && !twitterHandle.trim() && !walletAddress.trim())}
+              className="w-full px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg flex items-center justify-center gap-2 text-lg"
             >
               <Search className="w-5 h-5" />
-              {loading ? 'Analyzing...' : 'Analyze'}
+              {loading ? 'Analyzing...' : 'Analyze Token'}
             </button>
           </div>
 
@@ -235,25 +242,21 @@ export default function ResearchPage() {
             </div>
           )}
 
-          {/* Example Tokens */}
+          {/* Example Buttons */}
           <div className="mt-5 pt-5 border-t border-gray-200 dark:border-gray-700">
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 font-medium">Try these examples:</p>
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => {
-                  setSearchType('token');
-                  setSearchValue('CYtqp57NEdyetzbDfxVoJ19MWHvvVCQBL9jfFjXWpump');
-                }}
+                type="button"
+                onClick={() => loadExample('oxedium')}
                 className="text-sm px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
                 disabled={loading}
               >
                 Oxedium (High Risk Token)
               </button>
               <button
-                onClick={() => {
-                  setSearchType('twitter');
-                  setSearchValue('@pumpdotfun');
-                }}
+                type="button"
+                onClick={() => loadExample('pumpdotfun')}
                 className="text-sm px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
                 disabled={loading}
               >
