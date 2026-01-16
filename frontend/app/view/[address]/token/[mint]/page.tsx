@@ -246,14 +246,14 @@ export default function TokenDetailPage() {
         </div>
 
         {/* Trade Dates */}
-        {(token.first_buy_at || token.last_trade_at) && (
+        {(token.first_trade || token.last_trade) && (
           <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
             <div className="grid grid-cols-2 gap-4 text-sm">
-              {token.first_buy_at && (
+              {token.first_trade && (
                 <div>
                   <p className="text-gray-400 mb-1">First Trade</p>
                   <p className="text-white font-medium">
-                    {new Date(token.first_buy_at).toLocaleDateString(undefined, {
+                    {new Date(token.first_trade).toLocaleDateString(undefined, {
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric'
@@ -261,11 +261,11 @@ export default function TokenDetailPage() {
                   </p>
                 </div>
               )}
-              {token.last_trade_at && (
+              {token.last_trade && (
                 <div>
                   <p className="text-gray-400 mb-1">Last Trade</p>
                   <p className="text-white font-medium">
-                    {new Date(token.last_trade_at).toLocaleDateString(undefined, {
+                    {new Date(token.last_trade).toLocaleDateString(undefined, {
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric'
