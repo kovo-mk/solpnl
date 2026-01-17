@@ -50,8 +50,10 @@ class FraudAnalyzer:
 
         # Detect suspicious patterns
         patterns = self._detect_patterns(holder_data, contract_info, social_data, github_data)
+        logger.info(f"Detected {len(patterns)} suspicious patterns")
 
         # Get Claude's analysis
+        logger.info("About to call _get_claude_analysis...")
         claude_analysis = await self._get_claude_analysis(
             token_address=token_address,
             holder_metrics=holder_metrics,
@@ -60,6 +62,7 @@ class FraudAnalyzer:
             social_data=social_data,
             github_data=github_data,
         )
+        logger.info(f"Claude analysis returned: {claude_analysis.get('verdict', 'unknown')}")
 
         # Calculate risk score
         risk_score = self._calculate_risk_score(
