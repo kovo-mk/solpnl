@@ -24,7 +24,7 @@ class HeliusService:
     """Service for interacting with Helius API."""
 
     def __init__(self):
-        self.api_key = settings.helius_api_key
+        self.api_key = settings.HELIUS_API_KEY
         self.base_url = "https://api.helius.xyz"
         self.rpc_url = f"https://mainnet.helius-rpc.com/?api-key={self.api_key}"
 
@@ -971,7 +971,7 @@ class HeliusService:
             from config import settings
 
             # Try Solscan API first if key is configured
-            if not settings.solscan_api_key:
+            if not settings.SOLSCAN_API_KEY:
                 logger.info("Solscan API key not configured, using DexScreener scraper")
                 holder_count = await self.get_dexscreener_holder_count(token_address)
                 return {"holder_count": holder_count} if holder_count else {}
@@ -979,7 +979,7 @@ class HeliusService:
             url = f"https://pro-api.solscan.io/v2.0/token/meta"
             params = {"address": token_address}
             headers = {
-                "token": settings.solscan_api_key,
+                "token": settings.SOLSCAN_API_KEY,
                 "accept": "application/json"
             }
             timeout = aiohttp.ClientTimeout(total=10)

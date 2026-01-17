@@ -11,21 +11,23 @@ class Settings(BaseSettings):
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./solpnl.db")
 
     # Helius API
-    helius_api_key: str = ""
+    HELIUS_API_KEY: str = ""
 
     # Anthropic Claude API (for fraud detection)
-    anthropic_api_key: Optional[str] = None
+    ANTHROPIC_API_KEY: Optional[str] = None
+
+    # Optional APIs
+    SOLSCAN_API_KEY: Optional[str] = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Strip whitespace and newlines from API keys
-        if self.anthropic_api_key:
-            self.anthropic_api_key = self.anthropic_api_key.strip().replace('\n', '').replace('\r', '')
-        if self.helius_api_key:
-            self.helius_api_key = self.helius_api_key.strip().replace('\n', '').replace('\r', '')
-
-    # Optional APIs
-    solscan_api_key: Optional[str] = None
+        if self.ANTHROPIC_API_KEY:
+            self.ANTHROPIC_API_KEY = self.ANTHROPIC_API_KEY.strip().replace('\n', '').replace('\r', '')
+        if self.HELIUS_API_KEY:
+            self.HELIUS_API_KEY = self.HELIUS_API_KEY.strip().replace('\n', '').replace('\r', '')
+        if self.SOLSCAN_API_KEY:
+            self.SOLSCAN_API_KEY = self.SOLSCAN_API_KEY.strip().replace('\n', '').replace('\r', '')
 
     # Redis (for caching and rate limiting)
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379")
@@ -57,8 +59,14 @@ if settings.frontend_url:
 
 # Log configuration (mask sensitive data)
 from loguru import logger
-logger.info(f"ANTHROPIC_API_KEY loaded: {bool(settings.anthropic_api_key)}")
-if settings.anthropic_api_key:
-    logger.info(f"ANTHROPIC_API_KEY prefix: {settings.anthropic_api_key[:10]}...")
+logger.info(f"ANTHROPIC_API_KEY loaded: {bool(settings.ANTHROPIC_API_KEY)}")
+if settings.ANTHROPIC_API_KEY:
+    logger.info(f"ANTHROPIC_API_KEY prefix: {settings.ANTHROPIC_API_KEY[:10]}...")
 else:
     logger.warning("ANTHROPIC_API_KEY is NOT set!")
+
+logger.info(f"HELIUS_API_KEY loaded: {bool(settings.HELIUS_API_KEY)}")
+if settings.HELIUS_API_KEY:
+    logger.info(f"HELIUS_API_KEY prefix: {settings.HELIUS_API_KEY[:10]}...")
+else:
+    logger.warning("HELIUS_API_KEY is NOT set!")

@@ -12,7 +12,7 @@ class FraudAnalyzer:
     """Analyzes tokens for fraud patterns using Claude AI."""
 
     def __init__(self, api_key: Optional[str] = None):
-        final_key = api_key or settings.anthropic_api_key
+        final_key = api_key or settings.ANTHROPIC_API_KEY
         if final_key:
             # Strip any whitespace that might have been added
             final_key = final_key.strip()
