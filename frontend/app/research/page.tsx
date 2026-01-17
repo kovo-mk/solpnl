@@ -36,6 +36,7 @@ export default function ResearchPage() {
   const [tokenAddress, setTokenAddress] = useState('');
   const [twitterHandle, setTwitterHandle] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
+  const [telegramUrl, setTelegramUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<TokenReport | null>(null);
   const [error, setError] = useState('');
@@ -62,6 +63,7 @@ export default function ResearchPage() {
           token_address: tokenAddress.trim() || undefined,
           twitter_handle: twitterHandle.trim() || undefined,
           wallet_address: walletAddress.trim() || undefined,
+          telegram_url: telegramUrl.trim() || undefined,
           force_refresh: true,  // Always force fresh analysis (bypass cache)
         }),
       });
@@ -207,6 +209,23 @@ export default function ResearchPage() {
               />
             </div>
 
+            {/* Telegram URL Input */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18 1.897-.962 6.502-1.359 8.627-.168.9-.5 1.201-.82 1.23-.697.064-1.226-.461-1.901-.903-1.056-.693-1.653-1.124-2.678-1.8-1.185-.781-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.248-.024c-.106.024-1.793 1.139-5.062 3.345-.479.329-.913.489-1.302.481-.428-.009-1.252-.241-1.865-.44-.752-.244-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.015 3.332-1.386 4.025-1.627 4.476-1.635.099-.002.321.023.465.141.121.099.155.232.171.326.016.094.037.308.021.475z"/></svg>
+                Telegram Channel/Group (Optional)
+              </label>
+              <input
+                type="text"
+                value={telegramUrl}
+                onChange={(e) => setTelegramUrl(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && analyzeToken()}
+                placeholder="Enter Telegram URL (e.g., https://t.me/channel_name)"
+                className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+                disabled={loading}
+              />
+            </div>
+
             {/* Wallet Address Input */}
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -306,8 +325,9 @@ export default function ResearchPage() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Holders</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Top Holders Analyzed</div>
                 <div className="text-3xl font-bold text-gray-900 dark:text-white">{report.total_holders.toLocaleString()}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Largest {report.total_holders} wallets</div>
               </div>
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Top 10 Concentration</div>
