@@ -507,7 +507,7 @@ export default function ResearchPage() {
                       <div className="text-2xl font-bold text-gray-900 dark:text-white">
                         ${(report.volume_24h_usd || 0).toLocaleString()}
                       </div>
-                      {report.price_change_24h !== null && (
+                      {report.price_change_24h !== null && report.price_change_24h !== undefined && (
                         <div className={`text-sm mt-1 ${report.price_change_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {report.price_change_24h >= 0 ? '↑' : '↓'} {Math.abs(report.price_change_24h).toFixed(2)}%
                         </div>
@@ -526,13 +526,13 @@ export default function ResearchPage() {
                   )}
 
                   {/* Unique Traders */}
-                  {report.unique_traders_24h !== null && (
+                  {report.unique_traders_24h !== null && report.unique_traders_24h !== undefined && (
                     <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                       <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Unique Traders (24h)</div>
                       <div className="text-2xl font-bold text-gray-900 dark:text-white">
                         {report.unique_traders_24h}
                       </div>
-                      {report.txns_24h_total && (
+                      {report.txns_24h_total !== null && report.txns_24h_total !== undefined && (
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           {report.txns_24h_total} total txns
                         </div>
@@ -541,7 +541,7 @@ export default function ResearchPage() {
                   )}
 
                   {/* Wash Trading Score */}
-                  {report.wash_trading_score !== null && (
+                  {report.wash_trading_score !== null && report.wash_trading_score !== undefined && (
                     <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                       <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Wash Trading Risk</div>
                       <div className={`text-2xl font-bold ${
