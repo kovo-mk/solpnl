@@ -286,6 +286,7 @@ class TokenAnalysisReport(Base):
     volume_24h_usd = Column(Float, nullable=True)
     txns_24h_total = Column(Integer, nullable=True)
     airdrop_likelihood = Column(String(20), nullable=True)  # low, medium, high, critical
+    suspicious_wallets = Column(Text, nullable=True)  # JSON list of suspicious wallet details
 
     # Additional market data
     liquidity_usd = Column(Float, nullable=True)

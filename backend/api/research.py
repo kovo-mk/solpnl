@@ -60,6 +60,7 @@ class TokenReportResponse(BaseModel):
     volume_24h_usd: Optional[float] = None
     txns_24h_total: Optional[int] = None
     airdrop_likelihood: Optional[str] = None
+    suspicious_wallets: Optional[list] = None
 
     # Market data
     liquidity_usd: Optional[float] = None
@@ -209,6 +210,7 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
     # Parse JSON fields
     red_flags = json.loads(report.red_flags) if report.red_flags else []
     suspicious_patterns = json.loads(report.suspicious_patterns) if report.suspicious_patterns else []
+    suspicious_wallets = json.loads(report.suspicious_wallets) if report.suspicious_wallets else []
 
     return TokenReportResponse(
         token_address=report.token_address,
@@ -230,6 +232,7 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
         volume_24h_usd=report.volume_24h_usd,
         txns_24h_total=report.txns_24h_total,
         airdrop_likelihood=report.airdrop_likelihood,
+        suspicious_wallets=suspicious_wallets,
         liquidity_usd=report.liquidity_usd,
         price_change_24h=report.price_change_24h,
         # Other
@@ -261,6 +264,7 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
     # Parse JSON fields
     red_flags = json.loads(report.red_flags) if report.red_flags else []
     suspicious_patterns = json.loads(report.suspicious_patterns) if report.suspicious_patterns else []
+    suspicious_wallets = json.loads(report.suspicious_wallets) if report.suspicious_wallets else []
 
     return TokenReportResponse(
         token_address=report.token_address,
@@ -282,6 +286,7 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
         volume_24h_usd=report.volume_24h_usd,
         txns_24h_total=report.txns_24h_total,
         airdrop_likelihood=report.airdrop_likelihood,
+        suspicious_wallets=suspicious_wallets,
         liquidity_usd=report.liquidity_usd,
         price_change_24h=report.price_change_24h,
         # Other
@@ -495,6 +500,7 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             volume_24h_usd=market_data.get("volume_24h", 0),
             txns_24h_total=helius_analysis.get("total_transactions") or (market_data.get("txns_24h", {}).get("buys", 0) + market_data.get("txns_24h", {}).get("sells", 0)),
             airdrop_likelihood=wash_analysis.get("airdrop_likelihood"),
+            suspicious_wallets=json.dumps(helius_analysis.get("suspicious_wallets", [])),
             liquidity_usd=market_data.get("liquidity_usd"),
             price_change_24h=market_data.get("price_change_24h"),
             # AI analysis
