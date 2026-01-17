@@ -523,6 +523,153 @@ export default function ResearchPage() {
               </div>
             )}
 
+            {/* Transaction Pattern Analysis */}
+            {report.wash_trading_score !== null && report.wash_trading_score > 0 && report.unique_traders_24h && report.txns_24h_total && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🔍 Transaction Pattern Analysis</h2>
+
+                {/* Summary Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Transactions Analyzed</div>
+                    <div className="text-xl font-bold text-gray-900 dark:text-white">{report.txns_24h_total}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Last 7 days</div>
+                  </div>
+
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Unique Wallets</div>
+                    <div className="text-xl font-bold text-gray-900 dark:text-white">{report.unique_traders_24h}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Trading wallets</div>
+                  </div>
+
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Trader/Txn Ratio</div>
+                    <div className={`text-xl font-bold ${
+                      (report.unique_traders_24h / report.txns_24h_total) < 0.2 ? 'text-red-600' :
+                      (report.unique_traders_24h / report.txns_24h_total) < 0.4 ? 'text-orange-600' :
+                      'text-green-600'
+                    }`}>
+                      {((report.unique_traders_24h / report.txns_24h_total) * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {(report.unique_traders_24h / report.txns_24h_total) < 0.2 ? 'Very Low ⚠️' :
+                       (report.unique_traders_24h / report.txns_24h_total) < 0.4 ? 'Low ⚠️' :
+                       'Normal ✓'}
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Manipulation Score</div>
+                    <div className={`text-xl font-bold ${
+                      report.wash_trading_score >= 75 ? 'text-red-600' :
+                      report.wash_trading_score >= 50 ? 'text-orange-600' :
+                      report.wash_trading_score >= 25 ? 'text-yellow-600' :
+                      'text-green-600'
+                    }`}>
+                      {report.wash_trading_score}/100
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 capitalize">
+                      {report.wash_trading_likelihood} risk
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pattern Breakdown */}
+                {report.suspicious_patterns && report.suspicious_patterns.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Detected Manipulation Patterns</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {report.suspicious_patterns.includes('extreme_wash_trading') && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                          <div className="font-semibold text-red-900 dark:text-red-100">Extreme Wash Trading</div>
+                          <div className="text-sm text-red-700 dark:text-red-300">Same wallet pairs trading 10+ times</div>
+                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">+30 risk points</div>
+                        </div>
+                      )}
+
+                      {report.suspicious_patterns.includes('repeated_wallet_pairs') && (
+                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                          <div className="font-semibold text-orange-900 dark:text-orange-100">Repeated Trading Pairs</div>
+                          <div className="text-sm text-orange-700 dark:text-orange-300">Wallets trading repeatedly together</div>
+                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">+10-40 risk points</div>
+                        </div>
+                      )}
+
+                      {report.suspicious_patterns.includes('very_low_unique_traders') && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                          <div className="font-semibold text-red-900 dark:text-red-100">Very Low Unique Traders</div>
+                          <div className="text-sm text-red-700 dark:text-red-300">{'<20% unique wallets - artificial volume'}</div>
+                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">+35 risk points</div>
+                        </div>
+                      )}
+
+                      {report.suspicious_patterns.includes('low_unique_traders') && (
+                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                          <div className="font-semibold text-orange-900 dark:text-orange-100">Low Unique Traders</div>
+                          <div className="text-sm text-orange-700 dark:text-orange-300">{'<40% unique wallets - suspicious activity'}</div>
+                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">+20 risk points</div>
+                        </div>
+                      )}
+
+                      {report.suspicious_patterns.includes('bot_trading_detected') && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                          <div className="font-semibold text-red-900 dark:text-red-100">Bot Trading Detected</div>
+                          <div className="text-sm text-red-700 dark:text-red-300">Automated rapid trading detected</div>
+                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">+25 risk points</div>
+                        </div>
+                      )}
+
+                      {report.suspicious_patterns.includes('isolated_trading_groups') && (
+                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                          <div className="font-semibold text-orange-900 dark:text-orange-100">Isolated Trading Groups</div>
+                          <div className="text-sm text-orange-700 dark:text-orange-300">Wallets only trading with 1-2 others</div>
+                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">+20 risk points</div>
+                        </div>
+                      )}
+
+                      {report.suspicious_patterns.includes('circular_trading_detected') && (
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                          <div className="font-semibold text-red-900 dark:text-red-100">Circular Trading Detected</div>
+                          <div className="text-sm text-red-700 dark:text-red-300">A→B→C→A trading rings found</div>
+                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">+30 risk points</div>
+                        </div>
+                      )}
+
+                      {report.suspicious_patterns.includes('high_top5_concentration') && (
+                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                          <div className="font-semibold text-orange-900 dark:text-orange-100">High Holder Concentration</div>
+                          <div className="text-sm text-orange-700 dark:text-orange-300">Top 5 holders control {'>'} 50% of supply</div>
+                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">+15 risk points</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Key Insights */}
+                <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">💡 What This Means</h3>
+                  <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                    {(report.unique_traders_24h / report.txns_24h_total) < 0.2 && (
+                      <li>• Very few unique traders relative to transaction volume suggests wash trading</li>
+                    )}
+                    {report.suspicious_patterns.includes('extreme_wash_trading') && (
+                      <li>• Same wallets trading repeatedly indicates artificial volume creation</li>
+                    )}
+                    {report.suspicious_patterns.includes('bot_trading_detected') && (
+                      <li>• Bot activity detected - likely automated market manipulation</li>
+                    )}
+                    {report.suspicious_patterns.includes('circular_trading_detected') && (
+                      <li>• Circular trading patterns suggest coordinated manipulation scheme</li>
+                    )}
+                    {report.wash_trading_score >= 75 && (
+                      <li>• <strong>CRITICAL:</strong> Multiple manipulation indicators - avoid this token</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            )}
+
             {/* Red Flags */}
             {report.red_flags.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
