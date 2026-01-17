@@ -392,7 +392,7 @@ export default function ResearchPage() {
                           {report.wash_trading_score}/100
                         </div>
                       </div>
-                      {report.unique_traders_24h !== null && report.txns_24h_total && (
+                      {report.unique_traders_24h !== null && report.unique_traders_24h !== undefined && report.txns_24h_total && (
                         <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
                           <div className="text-gray-600 dark:text-gray-400">Trader/Txn Ratio</div>
                           <div className="text-2xl font-bold text-red-600 dark:text-red-400">
