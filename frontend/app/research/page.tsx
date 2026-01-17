@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Twitter, Wallet, FileText, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Twitter, Wallet, FileText, AlertCircle, Sun, Moon } from 'lucide-react';
 
 interface RedFlag {
   severity: string;
@@ -51,6 +51,30 @@ export default function ResearchPage() {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<TokenReport | null>(null);
   const [error, setError] = useState('');
+  const [isDark, setIsDark] = useState(false);
+
+  // Initialize theme from localStorage
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const shouldBeDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+    setIsDark(shouldBeDark);
+    if (shouldBeDark) {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
+  // Toggle theme
+  const toggleTheme = () => {
+    setIsDark(!isDark);
+    if (!isDark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
 
   const analyzeToken = async () => {
     // At least one field must be filled
@@ -176,11 +200,25 @@ export default function ResearchPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-3 text-gray-900 dark:text-white">Token Research</h1>
-          <p className="text-gray-600 dark:text-gray-400 text-lg">
-            AI-powered analysis to detect fraud patterns, holder concentration, and risk factors
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-4xl font-bold mb-3 text-gray-900 dark:text-white">Token Research</h1>
+            <p className="text-gray-600 dark:text-gray-400 text-lg">
+              AI-powered analysis to detect fraud patterns, holder concentration, and risk factors
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="ml-4 p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm"
+            aria-label="Toggle theme"
+          >
+            {isDark ? (
+              <Sun className="w-5 h-5 text-yellow-500" />
+            ) : (
+              <Moon className="w-5 h-5 text-gray-700" />
+            )}
+          </button>
         </div>
 
         {/* Search Form */}
