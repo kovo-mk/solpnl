@@ -262,12 +262,14 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
 # Background task function
 async def run_token_analysis(request_id: int, token_address: str):
     """Background task to run full token analysis."""
+    logger.info(f"=== STARTING BACKGROUND ANALYSIS TASK for {token_address} ===")
     from database import SessionLocal
 
     db = SessionLocal()
 
     try:
         # Update status to processing
+        logger.info(f"Fetching analysis request {request_id} from database...")
         analysis_request = db.query(TokenAnalysisRequest).filter(
             TokenAnalysisRequest.id == request_id
         ).first()
