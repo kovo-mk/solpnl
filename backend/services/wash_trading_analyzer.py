@@ -439,11 +439,7 @@ class WashTradingAnalyzer:
                 if not from_addr or not to_addr:
                     continue
 
-                # Skip if either address is a known DEX program
-                if from_addr in KNOWN_DEX_PROGRAMS or to_addr in KNOWN_DEX_PROGRAMS:
-                    continue
-
-                # Track wallet activity
+                # Track wallet activity (include DEX programs for analysis)
                 wallet_trades[from_addr].append({
                     "timestamp": timestamp,
                     "type": "sell",
@@ -544,11 +540,15 @@ class WashTradingAnalyzer:
                 return dex_labels.get(wallet, "DEX Program")
             return None
 
-        # Build suspicious wallet details
+        # Build suspicious wallet details (exclude DEX programs from display)
         suspicious_wallet_details = []
 
-        # Add wallets involved in repeated pairs
+        # Add wallets involved in repeated pairs (skip if wallet1 is a DEX program)
         for (wallet1, wallet2), count in suspicious_pairs:
+            # Skip if the primary wallet is a DEX program
+            if wallet1 in KNOWN_DEX_PROGRAMS:
+                continue
+
             label1 = get_wallet_label(wallet1)
             label2 = get_wallet_label(wallet2)
             suspicious_wallet_details.append({
@@ -560,8 +560,12 @@ class WashTradingAnalyzer:
                 "pattern": "repeated_pairs"
             })
 
-        # Add bot wallets
+        # Add bot wallets (skip DEX programs)
         for wallet in bot_wallets:
+            # Skip if wallet is a DEX program
+            if wallet in KNOWN_DEX_PROGRAMS:
+                continue
+
             label = get_wallet_label(wallet)
             if not any(w["wallet1"] == wallet or w.get("wallet2") == wallet for w in suspicious_wallet_details):
                 suspicious_wallet_details.append({
@@ -571,8 +575,12 @@ class WashTradingAnalyzer:
                     "pattern": "bot_activity"
                 })
 
-        # Add isolated traders
+        # Add isolated traders (skip DEX programs)
         for wallet in isolated_traders:
+            # Skip if wallet is a DEX program
+            if wallet in KNOWN_DEX_PROGRAMS:
+                continue
+
             label = get_wallet_label(wallet)
             if not any(w["wallet1"] == wallet or w.get("wallet2") == wallet for w in suspicious_wallet_details):
                 suspicious_wallet_details.append({
