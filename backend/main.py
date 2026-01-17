@@ -60,6 +60,30 @@ async def root():
     }
 
 
+@app.post("/migrate")
+async def run_migration():
+    """Run database migration to add total_holder_count column."""
+    from sqlalchemy import text
+    from database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        # Add the column if it doesn't exist
+        sql = """
+        ALTER TABLE token_analysis_reports
+        ADD COLUMN IF NOT EXISTS total_holder_count INTEGER;
+        """
+        db.execute(text(sql))
+        db.commit()
+        logger.info("Migration completed: added total_holder_count column")
+        return {"status": "success", "message": "Migration completed successfully"}
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+        return {"status": "error", "message": str(e)}
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
