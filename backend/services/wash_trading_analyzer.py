@@ -294,7 +294,8 @@ class WashTradingAnalyzer:
     async def analyze_helius_transactions(
         self,
         token_address: str,
-        limit: int = 500
+        limit: int = 500,
+        days_back: int = 7
     ) -> Dict:
         """
         Analyze actual trading transactions using Helius Enhanced Transactions API.
@@ -308,7 +309,8 @@ class WashTradingAnalyzer:
 
         Args:
             token_address: Token mint address
-            limit: Number of recent transactions to analyze (max 500)
+            limit: Number of recent transactions to analyze (max 1000)
+            days_back: Number of days to look back (default 7)
 
         Returns:
             {
@@ -326,29 +328,60 @@ class WashTradingAnalyzer:
             logger.warning("No Helius API key provided, skipping transaction analysis")
             return self._empty_transaction_analysis()
 
-        logger.info(f"Fetching {limit} transactions for {token_address[:8]}...")
+        logger.info(f"Fetching up to {limit} transactions for {token_address[:8]} (last {days_back} days)...")
 
         try:
-            # Fetch recent transactions for this token
-            url = f"https://api-mainnet.helius-rpc.com/v0/addresses/{token_address}/transactions"
-            params = {
-                "api-key": self.helius_api_key,
-                "limit": min(limit, 100),  # Helius max is 100 per request
-                "type": "SWAP"  # Focus on swap transactions
-            }
+            # Calculate time filter (Unix timestamp for X days ago)
+            time_cutoff = int((datetime.now() - timedelta(days=days_back)).timestamp())
 
             transactions = []
+            before_signature = None
+            max_requests = min(limit // 100 + 1, 10)  # Max 10 requests (1000 transactions)
+
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
-                    if response.status == 200:
-                        transactions = await response.json()
-                    else:
-                        logger.error(f"Helius API error: {response.status}")
-                        return self._empty_transaction_analysis()
+                for i in range(max_requests):
+                    url = f"https://api-mainnet.helius-rpc.com/v0/addresses/{token_address}/transactions"
+                    params = {
+                        "api-key": self.helius_api_key,
+                        "limit": 100,  # Helius max per request
+                        "type": "SWAP",  # Focus on swap transactions
+                        "gte-time": time_cutoff,  # Only last X days
+                    }
+
+                    # Add pagination
+                    if before_signature:
+                        params["before-signature"] = before_signature
+
+                    async with session.get(url, params=params) as response:
+                        if response.status == 200:
+                            batch = await response.json()
+                            if not batch:
+                                break  # No more transactions
+
+                            transactions.extend(batch)
+                            logger.info(f"Fetched batch {i+1}: {len(batch)} transactions (total: {len(transactions)})")
+
+                            # Check if we have enough
+                            if len(transactions) >= limit:
+                                transactions = transactions[:limit]
+                                break
+
+                            # Set pagination cursor to last transaction signature
+                            if len(batch) == 100:  # Only paginate if we got a full batch
+                                before_signature = batch[-1].get("signature")
+                            else:
+                                break  # Less than 100 = no more data
+                        else:
+                            logger.error(f"Helius API error: {response.status}")
+                            if i == 0:  # Only fail if first request fails
+                                return self._empty_transaction_analysis()
+                            break  # Use what we have
 
             if not transactions:
                 logger.info("No transactions found")
                 return self._empty_transaction_analysis()
+
+            logger.info(f"Analyzing {len(transactions)} transactions from last {days_back} days...")
 
             # Analyze trading patterns
             return self._analyze_transaction_patterns(token_address, transactions)
