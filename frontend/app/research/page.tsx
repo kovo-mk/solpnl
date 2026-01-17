@@ -62,6 +62,7 @@ export default function ResearchPage() {
           token_address: tokenAddress.trim() || undefined,
           twitter_handle: twitterHandle.trim() || undefined,
           wallet_address: walletAddress.trim() || undefined,
+          force_refresh: true,  // Always force fresh analysis (bypass cache)
         }),
       });
 
