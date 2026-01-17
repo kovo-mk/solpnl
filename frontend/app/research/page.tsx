@@ -562,7 +562,7 @@ export default function ResearchPage() {
             )}
 
             {/* Transaction Pattern Analysis */}
-            {report.wash_trading_score !== null && report.wash_trading_score > 0 && report.unique_traders_24h && report.txns_24h_total && (
+            {report.wash_trading_score !== null && report.wash_trading_score !== undefined && report.wash_trading_score > 0 && report.unique_traders_24h && report.txns_24h_total && (
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🔍 Transaction Pattern Analysis</h2>
 
