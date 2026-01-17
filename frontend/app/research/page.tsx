@@ -22,6 +22,16 @@ interface TokenReport {
   is_pump_fun: boolean;
   has_freeze_authority: boolean | null;
   has_mint_authority: boolean | null;
+  // Wash trading metrics
+  wash_trading_score?: number | null;
+  wash_trading_likelihood?: string | null;
+  unique_traders_24h?: number | null;
+  volume_24h_usd?: number | null;
+  txns_24h_total?: number | null;
+  airdrop_likelihood?: string | null;
+  liquidity_usd?: number | null;
+  price_change_24h?: number | null;
+  // Other
   red_flags: RedFlag[];
   suspicious_patterns: string[];
   twitter_handle: string | null;
@@ -325,6 +335,68 @@ export default function ResearchPage() {
               </div>
             )}
 
+            {/* Wash Trading Warning */}
+            {report.wash_trading_likelihood && ['high', 'critical'].includes(report.wash_trading_likelihood.toLowerCase()) && (
+              <div className="rounded-xl shadow-lg p-6 border-2 bg-red-50 dark:bg-red-900/20 border-red-500">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-red-900 dark:text-red-100 mb-2">
+                      Wash Trading Detected
+                    </h3>
+                    <p className="text-red-800 dark:text-red-200 mb-2">
+                      This token shows strong indicators of wash trading (artificial volume):
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 my-3 text-sm">
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
+                        <div className="text-gray-600 dark:text-gray-400">Wash Trading Score</div>
+                        <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                          {report.wash_trading_score}/100
+                        </div>
+                      </div>
+                      {report.unique_traders_24h !== null && report.txns_24h_total && (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
+                          <div className="text-gray-600 dark:text-gray-400">Trader/Txn Ratio</div>
+                          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                            {((report.unique_traders_24h / report.txns_24h_total) * 100).toFixed(1)}%
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-sm text-red-700 dark:text-red-300 font-medium">
+                      ⚠️ Volume may be artificially inflated by the same wallets trading back and forth. Exercise extreme caution.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Airdrop Scheme Warning */}
+            {report.airdrop_likelihood && ['high', 'critical'].includes(report.airdrop_likelihood.toLowerCase()) && (
+              <div className="rounded-xl shadow-lg p-6 border-2 bg-orange-50 dark:bg-orange-900/20 border-orange-500">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-6 h-6 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-orange-900 dark:text-orange-100 mb-2">
+                      Airdrop Scheme Detected
+                    </h3>
+                    <p className="text-orange-800 dark:text-orange-200">
+                      This token shows signs of a mass airdrop scheme:
+                    </p>
+                    <ul className="list-disc list-inside mt-2 space-y-1 text-orange-800 dark:text-orange-200">
+                      <li>Many holders received identical token amounts</li>
+                      <li>Likely used to create artificial holder count</li>
+                      <li>Recipients may dump tokens immediately</li>
+                      <li>Could be a Sybil attack (one person, many wallets)</li>
+                    </ul>
+                    <p className="mt-3 text-sm text-orange-700 dark:text-orange-300 font-medium">
+                      High risk of coordinated dump. Holder count may be misleading.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Risk Score Card */}
             <div className={`rounded-xl shadow-lg p-8 border-2 ${getRiskBgColor(report.risk_level)}`}>
               <div className="flex items-center justify-between mb-6">
@@ -383,6 +455,73 @@ export default function ResearchPage() {
                 </div>
               </div>
             </div>
+
+            {/* Market Data & Wash Trading Analysis */}
+            {(report.volume_24h_usd || report.liquidity_usd || report.wash_trading_score !== null) && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">📊 Market & Trading Analysis</h2>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Volume 24h */}
+                  {report.volume_24h_usd !== null && report.volume_24h_usd > 0 && (
+                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">24h Volume</div>
+                      <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                        ${(report.volume_24h_usd || 0).toLocaleString()}
+                      </div>
+                      {report.price_change_24h !== null && (
+                        <div className={`text-sm mt-1 ${report.price_change_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {report.price_change_24h >= 0 ? '↑' : '↓'} {Math.abs(report.price_change_24h).toFixed(2)}%
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Liquidity */}
+                  {report.liquidity_usd !== null && report.liquidity_usd > 0 && (
+                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Liquidity</div>
+                      <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                        ${(report.liquidity_usd || 0).toLocaleString()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Unique Traders */}
+                  {report.unique_traders_24h !== null && (
+                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Unique Traders (24h)</div>
+                      <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {report.unique_traders_24h}
+                      </div>
+                      {report.txns_24h_total && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {report.txns_24h_total} total txns
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Wash Trading Score */}
+                  {report.wash_trading_score !== null && (
+                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Wash Trading Risk</div>
+                      <div className={`text-2xl font-bold ${
+                        report.wash_trading_score >= 75 ? 'text-red-600' :
+                        report.wash_trading_score >= 50 ? 'text-orange-600' :
+                        report.wash_trading_score >= 25 ? 'text-yellow-600' :
+                        'text-green-600'
+                      }`}>
+                        {report.wash_trading_score}/100
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 capitalize">
+                        {report.wash_trading_likelihood || 'low'} likelihood
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Red Flags */}
             {report.red_flags.length > 0 && (
