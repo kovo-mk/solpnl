@@ -14,6 +14,7 @@ from database.models import (
 )
 from services.fraud_analyzer import FraudAnalyzer
 from services.helius import HeliusService
+from services.wash_trading_analyzer import WashTradingAnalyzer
 from config import settings
 
 
@@ -51,6 +52,18 @@ class TokenReportResponse(BaseModel):
     is_pump_fun: bool
     has_freeze_authority: Optional[bool]
     has_mint_authority: Optional[bool]
+
+    # Wash trading analysis
+    wash_trading_score: Optional[int] = None
+    wash_trading_likelihood: Optional[str] = None
+    unique_traders_24h: Optional[int] = None
+    volume_24h_usd: Optional[float] = None
+    txns_24h_total: Optional[int] = None
+    airdrop_likelihood: Optional[str] = None
+
+    # Market data
+    liquidity_usd: Optional[float] = None
+    price_change_24h: Optional[float] = None
 
     # Red flags
     red_flags: list
@@ -210,6 +223,16 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
         is_pump_fun=report.is_pump_fun,
         has_freeze_authority=report.has_freeze_authority,
         has_mint_authority=report.has_mint_authority,
+        # Wash trading
+        wash_trading_score=report.wash_trading_score,
+        wash_trading_likelihood=report.wash_trading_likelihood,
+        unique_traders_24h=report.unique_traders_24h,
+        volume_24h_usd=report.volume_24h_usd,
+        txns_24h_total=report.txns_24h_total,
+        airdrop_likelihood=report.airdrop_likelihood,
+        liquidity_usd=report.liquidity_usd,
+        price_change_24h=report.price_change_24h,
+        # Other
         red_flags=red_flags,
         suspicious_patterns=suspicious_patterns,
         twitter_handle=report.twitter_handle,
@@ -252,6 +275,16 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
         is_pump_fun=report.is_pump_fun,
         has_freeze_authority=report.has_freeze_authority,
         has_mint_authority=report.has_mint_authority,
+        # Wash trading
+        wash_trading_score=report.wash_trading_score,
+        wash_trading_likelihood=report.wash_trading_likelihood,
+        unique_traders_24h=report.unique_traders_24h,
+        volume_24h_usd=report.volume_24h_usd,
+        txns_24h_total=report.txns_24h_total,
+        airdrop_likelihood=report.airdrop_likelihood,
+        liquidity_usd=report.liquidity_usd,
+        price_change_24h=report.price_change_24h,
+        # Other
         red_flags=red_flags,
         suspicious_patterns=suspicious_patterns,
         twitter_handle=report.twitter_handle,
@@ -304,7 +337,11 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         logger.info(f"Fetching DexScreener data for {token_address}")
         dex_data = await helius.get_dexscreener_data(token_address)
 
-        # 3.5. Get Solscan data (holder count, market data)
+        # 3.5. Get Birdeye data (volume, transactions, liquidity)
+        logger.info(f"Fetching Birdeye token data for {token_address}")
+        birdeye_data = await helius.get_birdeye_token_data(token_address)
+
+        # 3.6. Get Solscan data (holder count, market data)
         logger.info(f"Fetching Solscan token metadata for {token_address}")
         solscan_data = await helius.get_solscan_token_meta(token_address)
 
@@ -368,6 +405,17 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             github_data=None,
         )
 
+        # 5.5. Run wash trading analysis
+        logger.info(f"Running wash trading analysis for {token_address}")
+        wash_analyzer = WashTradingAnalyzer()
+        wash_analysis = wash_analyzer.analyze_trading_patterns(
+            token_address=token_address,
+            holder_data=holder_data,
+            transaction_history=None,  # TODO: Add holder transaction history
+            dex_data=birdeye_data if birdeye_data else dex_data,
+        )
+        logger.info(f"Wash trading score: {wash_analysis['wash_trading_score']}, likelihood: {wash_analysis['wash_trading_likelihood']}")
+
         # 4. Create or update token record
         token = db.query(Token).filter(Token.address == token_address).first()
         if not token:
@@ -382,6 +430,9 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
 
         # 5. Create analysis report
         # twitter_handle already extracted from DexScreener above
+
+        # Use Birdeye data if available, fallback to DexScreener
+        market_data = birdeye_data if birdeye_data else dex_data
 
         report = TokenAnalysisReport(
             token_address=token_address,
@@ -400,6 +451,16 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             twitter_handle=twitter_handle,
             telegram_group=social_data.get("telegram_url") if social_data else None,
             telegram_members=telegram_members,
+            # Wash trading metrics
+            wash_trading_score=wash_analysis["wash_trading_score"],
+            wash_trading_likelihood=wash_analysis["wash_trading_likelihood"],
+            unique_traders_24h=market_data.get("unique_wallets_24h"),
+            volume_24h_usd=market_data.get("volume_24h", 0),
+            txns_24h_total=market_data.get("txns_24h", {}).get("buys", 0) + market_data.get("txns_24h", {}).get("sells", 0),
+            airdrop_likelihood=wash_analysis.get("airdrop_likelihood"),
+            liquidity_usd=market_data.get("liquidity_usd"),
+            price_change_24h=market_data.get("price_change_24h"),
+            # AI analysis
             claude_summary=analysis_result["claude_summary"],
             claude_verdict=analysis_result["claude_verdict"],
             cached_until=datetime.now(timezone.utc) + timedelta(hours=24),  # Cache for 24h

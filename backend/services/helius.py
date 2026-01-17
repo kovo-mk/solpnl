@@ -820,6 +820,63 @@ class HeliusService:
             logger.error(f"Error fetching DexScreener data: {e}")
             return {}
 
+    async def get_birdeye_token_data(self, token_address: str) -> Dict[str, Any]:
+        """
+        Fetch comprehensive token data from Birdeye API (free tier).
+        Includes volume, trades, liquidity, and more.
+
+        Args:
+            token_address: Token mint address
+
+        Returns:
+            Dict with volume_24h, txns_24h, liquidity, price_change, etc.
+        """
+        try:
+            # Birdeye public API (no key required for basic data)
+            url = f"https://public-api.birdeye.so/defi/token_overview"
+            params = {"address": token_address}
+
+            headers = {
+                "User-Agent": "Mozilla/5.0",
+                "X-Chain": "solana"
+            }
+
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status != 200:
+                        logger.warning(f"Birdeye API returned {response.status}")
+                        return {}
+
+                    data = await response.json()
+
+                    if not data.get("success"):
+                        return {}
+
+                    token_data = data.get("data", {})
+
+                    result = {
+                        "volume_24h": token_data.get("v24hUSD", 0),
+                        "volume_change_24h": token_data.get("v24hChangePercent", 0),
+                        "liquidity_usd": token_data.get("liquidity", 0),
+                        "price_usd": token_data.get("price", 0),
+                        "price_change_24h": token_data.get("priceChange24hPercent", 0),
+                        "market_cap": token_data.get("mc", 0),
+                        "txns_24h": {
+                            "buys": token_data.get("trade24h", {}).get("buys", 0),
+                            "sells": token_data.get("trade24h", {}).get("sells", 0),
+                        },
+                        "unique_wallets_24h": token_data.get("uniqueWallet24h", 0),
+                        "holder_count": token_data.get("holder", 0),
+                    }
+
+                    logger.info(f"Birdeye data: volume=${result['volume_24h']}, txns={result['txns_24h']}")
+                    return result
+
+        except Exception as e:
+            logger.error(f"Error fetching Birdeye data: {e}")
+            return {}
+
     async def get_dexscreener_data(self, token_address: str) -> Dict[str, Any]:
         """
         Scrape data from DexScreener website including holder count and social links.

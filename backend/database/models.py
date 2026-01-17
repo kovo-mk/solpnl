@@ -279,6 +279,18 @@ class TokenAnalysisReport(Base):
     twitter_followers = Column(Integer, nullable=True)
     telegram_members = Column(Integer, nullable=True)
 
+    # Wash trading analysis
+    wash_trading_score = Column(Integer, nullable=True)  # 0-100, higher = more suspicious
+    wash_trading_likelihood = Column(String(20), nullable=True)  # low, medium, high, critical
+    unique_traders_24h = Column(Integer, nullable=True)
+    volume_24h_usd = Column(Float, nullable=True)
+    txns_24h_total = Column(Integer, nullable=True)
+    airdrop_likelihood = Column(String(20), nullable=True)  # low, medium, high, critical
+
+    # Additional market data
+    liquidity_usd = Column(Float, nullable=True)
+    price_change_24h = Column(Float, nullable=True)
+
     # AI analysis summary
     claude_summary = Column(Text, nullable=True)  # Claude's natural language analysis
     claude_verdict = Column(String(50), nullable=True)  # safe, suspicious, likely_scam, confirmed_scam
