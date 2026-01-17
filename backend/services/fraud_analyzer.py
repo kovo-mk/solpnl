@@ -12,7 +12,9 @@ class FraudAnalyzer:
     """Analyzes tokens for fraud patterns using Claude AI."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.client = Anthropic(api_key=api_key or settings.anthropic_api_key)
+        final_key = api_key or settings.anthropic_api_key
+        logger.info(f"Initializing FraudAnalyzer with API key length: {len(final_key) if final_key else 0}")
+        self.client = Anthropic(api_key=final_key)
 
     async def analyze_token(
         self,
