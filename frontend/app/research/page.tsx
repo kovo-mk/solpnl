@@ -34,6 +34,15 @@ interface TokenReport {
   // Other
   red_flags: RedFlag[];
   suspicious_patterns: string[];
+  suspicious_wallets?: Array<{
+    wallet1: string;
+    wallet2?: string;
+    wallet1_label?: string;
+    wallet2_label?: string;
+    trade_count: number;
+    counterparties?: number;
+    pattern: string;
+  }>;
   twitter_handle: string | null;
   twitter_followers: number | null;
   telegram_members: number | null;
