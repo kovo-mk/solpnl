@@ -670,6 +670,64 @@ export default function ResearchPage() {
               </div>
             )}
 
+            {/* Suspicious Wallets */}
+            {report.suspicious_wallets && report.suspicious_wallets.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">👛 Suspicious Wallets</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Wallets involved in manipulation patterns (DEX programs filtered out)
+                </p>
+                <div className="space-y-3">
+                  {report.suspicious_wallets.slice(0, 10).map((wallet: any, idx: number) => (
+                    <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-orange-600 dark:text-orange-400 uppercase">
+                            {wallet.pattern?.replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {wallet.trade_count} trades
+                          </span>
+                        </div>
+                        <div className="font-mono text-sm text-gray-900 dark:text-white break-all">
+                          {wallet.wallet1}
+                          {wallet.wallet1_label && (
+                            <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">({wallet.wallet1_label})</span>
+                          )}
+                        </div>
+                        {wallet.wallet2 && (
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            Trading with: <span className="font-mono">{wallet.wallet2.slice(0, 8)}...{wallet.wallet2.slice(-8)}</span>
+                            {wallet.wallet2_label && (
+                              <span className="ml-2 text-blue-600 dark:text-blue-400">({wallet.wallet2_label})</span>
+                            )}
+                          </div>
+                        )}
+                        {wallet.counterparties && (
+                          <div className="text-xs text-gray-600 dark:text-gray-400">
+                            Unique counterparties: {wallet.counterparties}
+                          </div>
+                        )}
+                        <a
+                          href={`https://solscan.io/account/${wallet.wallet1}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          View on Solscan →
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {report.suspicious_wallets.length > 10 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">
+                    Showing 10 of {report.suspicious_wallets.length} suspicious wallets
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Red Flags */}
             {report.red_flags.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
