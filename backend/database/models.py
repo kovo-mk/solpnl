@@ -290,6 +290,7 @@ class TokenAnalysisReport(Base):
     # Additional market data
     liquidity_usd = Column(Float, nullable=True)
     price_change_24h = Column(Float, nullable=True)
+    market_cap_usd = Column(Float, nullable=True)
 
     # AI analysis summary
     claude_summary = Column(Text, nullable=True)  # Claude's natural language analysis

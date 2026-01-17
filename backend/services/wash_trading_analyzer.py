@@ -397,6 +397,17 @@ class WashTradingAnalyzer:
     ) -> Dict:
         """Analyze transaction patterns for wash trading indicators."""
 
+        # Known DEX programs and liquidity pools to filter out
+        KNOWN_DEX_PROGRAMS = {
+            "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",  # Raydium AMM
+            "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",  # Raydium V4
+            "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK",  # Raydium CLMM
+            "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB",   # Jupiter
+            "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",   # Jupiter V6
+            "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",   # Orca Whirlpool
+            "9W959DqEETiGZocYWCQPaJ6sBmUzgfxXfqGeTEdp3aQP",   # Orca V2
+        }
+
         wallet_trades = defaultdict(list)  # wallet -> list of trades
         wallet_counterparties = defaultdict(set)  # wallet -> set of counterparties
         trade_pairs = defaultdict(int)  # (wallet1, wallet2) -> count
@@ -426,6 +437,10 @@ class WashTradingAnalyzer:
                 amount = transfer.get("tokenAmount", 0)
 
                 if not from_addr or not to_addr:
+                    continue
+
+                # Skip if either address is a known DEX program
+                if from_addr in KNOWN_DEX_PROGRAMS or to_addr in KNOWN_DEX_PROGRAMS:
                     continue
 
                 # Track wallet activity
@@ -513,6 +528,61 @@ class WashTradingAnalyzer:
             patterns.append("circular_trading_detected")
             score += min(len(circular_rings) * 15, 30)
 
+        # Build detailed wallet lists with labels
+        def get_wallet_label(wallet: str) -> str:
+            """Get human-readable label for wallet."""
+            if wallet in KNOWN_DEX_PROGRAMS:
+                dex_labels = {
+                    "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8": "Raydium AMM",
+                    "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1": "Raydium V4",
+                    "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK": "Raydium CLMM",
+                    "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB": "Jupiter",
+                    "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4": "Jupiter V6",
+                    "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc": "Orca Whirlpool",
+                    "9W959DqEETiGZocYWCQPaJ6sBmUzgfxXfqGeTEdp3aQP": "Orca V2",
+                }
+                return dex_labels.get(wallet, "DEX Program")
+            return None
+
+        # Build suspicious wallet details
+        suspicious_wallet_details = []
+
+        # Add wallets involved in repeated pairs
+        for (wallet1, wallet2), count in suspicious_pairs:
+            label1 = get_wallet_label(wallet1)
+            label2 = get_wallet_label(wallet2)
+            suspicious_wallet_details.append({
+                "wallet1": wallet1,
+                "wallet2": wallet2,
+                "wallet1_label": label1,
+                "wallet2_label": label2,
+                "trade_count": count,
+                "pattern": "repeated_pairs"
+            })
+
+        # Add bot wallets
+        for wallet in bot_wallets:
+            label = get_wallet_label(wallet)
+            if not any(w["wallet1"] == wallet or w.get("wallet2") == wallet for w in suspicious_wallet_details):
+                suspicious_wallet_details.append({
+                    "wallet1": wallet,
+                    "wallet1_label": label,
+                    "trade_count": len(wallet_trades[wallet]),
+                    "pattern": "bot_activity"
+                })
+
+        # Add isolated traders
+        for wallet in isolated_traders:
+            label = get_wallet_label(wallet)
+            if not any(w["wallet1"] == wallet or w.get("wallet2") == wallet for w in suspicious_wallet_details):
+                suspicious_wallet_details.append({
+                    "wallet1": wallet,
+                    "wallet1_label": label,
+                    "trade_count": len(wallet_trades[wallet]),
+                    "counterparties": len(wallet_counterparties[wallet]),
+                    "pattern": "isolated_trading"
+                })
+
         # Calculate final metrics
         return {
             "wash_trading_score": min(score, 100),
@@ -525,6 +595,7 @@ class WashTradingAnalyzer:
             "circular_trading_rings": len(circular_rings),
             "suspicious_patterns": patterns,
             "top_suspicious_pairs": sorted(suspicious_pairs, key=lambda x: x[1], reverse=True)[:5],
+            "suspicious_wallets": suspicious_wallet_details[:20],  # Limit to top 20
             "metrics": {
                 "unique_traders": unique_traders,
                 "total_transactions": total_trades,
