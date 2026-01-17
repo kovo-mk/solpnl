@@ -501,7 +501,7 @@ export default function ResearchPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Volume 24h */}
-                  {report.volume_24h_usd !== null && report.volume_24h_usd > 0 && (
+                  {report.volume_24h_usd !== null && report.volume_24h_usd !== undefined && report.volume_24h_usd > 0 && (
                     <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                       <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">24h Volume</div>
                       <div className="text-2xl font-bold text-gray-900 dark:text-white">
