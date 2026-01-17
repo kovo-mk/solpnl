@@ -3,10 +3,15 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from loguru import logger
+import aiohttp
 
 
 class WashTradingAnalyzer:
     """Analyzes tokens for wash trading and market manipulation patterns."""
+
+    def __init__(self, helius_api_key: Optional[str] = None):
+        """Initialize with optional Helius API key for transaction analysis."""
+        self.helius_api_key = helius_api_key
 
     def analyze_trading_patterns(
         self,
@@ -285,3 +290,255 @@ class WashTradingAnalyzer:
             summary += "• Dump tokens on unsuspecting buyers\n"
 
         return summary
+
+    async def analyze_helius_transactions(
+        self,
+        token_address: str,
+        limit: int = 500
+    ) -> Dict:
+        """
+        Analyze actual trading transactions using Helius Enhanced Transactions API.
+
+        Detects:
+        - Wash trading (same wallets trading back and forth)
+        - Bot trading patterns (rapid automated trading)
+        - Circular trading (A->B->C->A patterns)
+        - Coordinated wallet activity (Sybil attacks)
+        - Volume manipulation
+
+        Args:
+            token_address: Token mint address
+            limit: Number of recent transactions to analyze (max 500)
+
+        Returns:
+            {
+                wash_trading_score: 0-100,
+                unique_traders: int,
+                total_transactions: int,
+                suspicious_wallet_pairs: [...],
+                circular_trading_rings: [...],
+                bot_activity_detected: bool,
+                rapid_trade_count: int,
+                metrics: {...}
+            }
+        """
+        if not self.helius_api_key:
+            logger.warning("No Helius API key provided, skipping transaction analysis")
+            return self._empty_transaction_analysis()
+
+        logger.info(f"Fetching {limit} transactions for {token_address[:8]}...")
+
+        try:
+            # Fetch recent transactions for this token
+            url = f"https://api-mainnet.helius-rpc.com/v0/addresses/{token_address}/transactions"
+            params = {
+                "api-key": self.helius_api_key,
+                "limit": min(limit, 100),  # Helius max is 100 per request
+                "type": "SWAP"  # Focus on swap transactions
+            }
+
+            transactions = []
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params) as response:
+                    if response.status == 200:
+                        transactions = await response.json()
+                    else:
+                        logger.error(f"Helius API error: {response.status}")
+                        return self._empty_transaction_analysis()
+
+            if not transactions:
+                logger.info("No transactions found")
+                return self._empty_transaction_analysis()
+
+            # Analyze trading patterns
+            return self._analyze_transaction_patterns(token_address, transactions)
+
+        except Exception as e:
+            logger.error(f"Error fetching Helius transactions: {e}")
+            return self._empty_transaction_analysis()
+
+    def _analyze_transaction_patterns(
+        self,
+        token_address: str,
+        transactions: List[Dict]
+    ) -> Dict:
+        """Analyze transaction patterns for wash trading indicators."""
+
+        wallet_trades = defaultdict(list)  # wallet -> list of trades
+        wallet_counterparties = defaultdict(set)  # wallet -> set of counterparties
+        trade_pairs = defaultdict(int)  # (wallet1, wallet2) -> count
+        rapid_trades = []  # trades within 60 seconds
+        bot_patterns = defaultdict(int)  # wallet -> count of bot-like behavior
+
+        # Track circular trading (A->B->C->A)
+        wallet_connections = defaultdict(list)  # from_wallet -> [(to_wallet, timestamp)]
+
+        patterns = []
+        score = 0
+
+        for tx in transactions:
+            timestamp = tx.get("timestamp")
+            token_transfers = tx.get("tokenTransfers", [])
+            tx_type = tx.get("type")
+            source = tx.get("source", "")
+
+            # Find transfers involving our token
+            for transfer in token_transfers:
+                mint = transfer.get("mint")
+                if mint != token_address:
+                    continue
+
+                from_addr = transfer.get("fromUserAccount")
+                to_addr = transfer.get("toUserAccount")
+                amount = transfer.get("tokenAmount", 0)
+
+                if not from_addr or not to_addr:
+                    continue
+
+                # Track wallet activity
+                wallet_trades[from_addr].append({
+                    "timestamp": timestamp,
+                    "type": "sell",
+                    "amount": amount,
+                    "counterparty": to_addr,
+                    "source": source
+                })
+                wallet_trades[to_addr].append({
+                    "timestamp": timestamp,
+                    "type": "buy",
+                    "amount": amount,
+                    "counterparty": from_addr,
+                    "source": source
+                })
+
+                # Track counterparties
+                wallet_counterparties[from_addr].add(to_addr)
+                wallet_counterparties[to_addr].add(from_addr)
+
+                # Track pairs
+                pair = tuple(sorted([from_addr, to_addr]))
+                trade_pairs[pair] += 1
+
+                # Track connections for circular trading
+                wallet_connections[from_addr].append((to_addr, timestamp))
+
+                # Check for rapid trading (bot detection)
+                if from_addr in wallet_trades and len(wallet_trades[from_addr]) > 1:
+                    last_trade = wallet_trades[from_addr][-2]
+                    time_diff = timestamp - last_trade["timestamp"]
+                    if time_diff < 60:  # Less than 60 seconds
+                        rapid_trades.append({
+                            "wallet": from_addr,
+                            "time_gap": time_diff,
+                            "source": source
+                        })
+                        bot_patterns[from_addr] += 1
+
+        # 1. Detect wash trading (same pairs trading repeatedly)
+        suspicious_pairs = [(pair, count) for pair, count in trade_pairs.items() if count >= 3]
+        if suspicious_pairs:
+            patterns.append("repeated_wallet_pairs")
+            score += min(len(suspicious_pairs) * 10, 40)
+
+            # Very suspicious if same pair trades 10+ times
+            very_suspicious = [p for p, c in suspicious_pairs if c >= 10]
+            if very_suspicious:
+                patterns.append("extreme_wash_trading")
+                score += 30
+
+        # 2. Detect low unique trader ratio
+        unique_traders = len(wallet_trades)
+        total_trades = len(transactions)
+        trader_ratio = unique_traders / total_trades if total_trades > 0 else 0
+
+        if trader_ratio < 0.2:  # Less than 20% unique traders
+            patterns.append("very_low_unique_traders")
+            score += 35
+        elif trader_ratio < 0.4:
+            patterns.append("low_unique_traders")
+            score += 20
+
+        # 3. Detect bot activity
+        bot_wallets = [w for w, count in bot_patterns.items() if count >= 5]
+        if bot_wallets:
+            patterns.append("bot_trading_detected")
+            score += min(len(bot_wallets) * 5, 25)
+
+        # 4. Detect wallets with very few counterparties (same wallets trading with each other)
+        isolated_traders = []
+        for wallet, counterparties in wallet_counterparties.items():
+            if len(wallet_trades[wallet]) >= 5 and len(counterparties) <= 2:
+                isolated_traders.append(wallet)
+
+        if isolated_traders:
+            patterns.append("isolated_trading_groups")
+            score += 20
+
+        # 5. Detect circular trading rings
+        circular_rings = self._detect_circular_trading(wallet_connections)
+        if circular_rings:
+            patterns.append("circular_trading_detected")
+            score += min(len(circular_rings) * 15, 30)
+
+        # Calculate final metrics
+        return {
+            "wash_trading_score": min(score, 100),
+            "unique_traders": unique_traders,
+            "total_transactions": total_trades,
+            "trader_ratio": trader_ratio,
+            "suspicious_wallet_pairs": len(suspicious_pairs),
+            "bot_wallets_detected": len(bot_wallets),
+            "rapid_trade_count": len(rapid_trades),
+            "circular_trading_rings": len(circular_rings),
+            "suspicious_patterns": patterns,
+            "top_suspicious_pairs": sorted(suspicious_pairs, key=lambda x: x[1], reverse=True)[:5],
+            "metrics": {
+                "unique_traders": unique_traders,
+                "total_transactions": total_trades,
+                "trader_ratio": trader_ratio,
+                "wash_trading_score": min(score, 100),
+                "bot_activity": len(bot_wallets) > 0
+            }
+        }
+
+    def _detect_circular_trading(
+        self,
+        connections: Dict[str, List[Tuple[str, int]]]
+    ) -> List[List[str]]:
+        """Detect circular trading patterns (A->B->C->A)."""
+        rings = []
+
+        # Simple 3-wallet ring detection
+        for wallet_a in connections:
+            for wallet_b, _ in connections.get(wallet_a, []):
+                for wallet_c, _ in connections.get(wallet_b, []):
+                    # Check if C trades back to A
+                    for wallet_d, _ in connections.get(wallet_c, []):
+                        if wallet_d == wallet_a:
+                            ring = sorted([wallet_a, wallet_b, wallet_c])
+                            if ring not in rings:
+                                rings.append(ring)
+
+        return rings
+
+    def _empty_transaction_analysis(self) -> Dict:
+        """Return empty analysis when transactions unavailable."""
+        return {
+            "wash_trading_score": 0,
+            "unique_traders": 0,
+            "total_transactions": 0,
+            "trader_ratio": 0,
+            "suspicious_wallet_pairs": 0,
+            "bot_wallets_detected": 0,
+            "rapid_trade_count": 0,
+            "circular_trading_rings": 0,
+            "suspicious_patterns": [],
+            "top_suspicious_pairs": [],
+            "metrics": {
+                "unique_traders": 0,
+                "total_transactions": 0,
+                "trader_ratio": 0,
+                "wash_trading_score": 0,
+                "bot_activity": False
+            }
+        }

@@ -407,14 +407,49 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
 
         # 5.5. Run wash trading analysis
         logger.info(f"Running wash trading analysis for {token_address}")
-        wash_analyzer = WashTradingAnalyzer()
+        wash_analyzer = WashTradingAnalyzer(helius_api_key=settings.HELIUS_API_KEY)
+
+        # Run Helius transaction analysis for real wash trading detection
+        helius_analysis = await wash_analyzer.analyze_helius_transactions(
+            token_address=token_address,
+            limit=100  # Analyze last 100 swaps
+        )
+        logger.info(f"Helius analysis - Unique traders: {helius_analysis['unique_traders']}, "
+                   f"Total txns: {helius_analysis['total_transactions']}, "
+                   f"Score: {helius_analysis['wash_trading_score']}")
+
+        # Also run holder-based analysis
         wash_analysis = wash_analyzer.analyze_trading_patterns(
             token_address=token_address,
             holder_data=holder_data,
-            transaction_history=None,  # TODO: Add holder transaction history
+            transaction_history=None,
             dex_data=birdeye_data if birdeye_data else dex_data,
         )
-        logger.info(f"Wash trading score: {wash_analysis['wash_trading_score']}, likelihood: {wash_analysis['wash_trading_likelihood']}")
+
+        # Combine scores - take the higher of the two
+        combined_wash_score = max(
+            wash_analysis['wash_trading_score'],
+            helius_analysis['wash_trading_score']
+        )
+
+        # If either analysis shows high risk, mark as high risk
+        if helius_analysis['wash_trading_score'] >= 50 or wash_analysis['wash_trading_score'] >= 50:
+            wash_trading_likelihood = "high"
+        elif helius_analysis['wash_trading_score'] >= 25 or wash_analysis['wash_trading_score'] >= 25:
+            wash_trading_likelihood = "medium"
+        else:
+            wash_trading_likelihood = "low"
+
+        # Merge suspicious patterns
+        all_patterns = list(set(
+            wash_analysis.get('suspicious_patterns', []) +
+            helius_analysis.get('suspicious_patterns', [])
+        ))
+
+        logger.info(f"Combined wash trading score: {combined_wash_score}, likelihood: {wash_trading_likelihood}")
+
+        # Merge wash trading patterns into fraud analysis patterns
+        analysis_result["suspicious_patterns"].extend(all_patterns)
 
         # 4. Create or update token record
         token = db.query(Token).filter(Token.address == token_address).first()
@@ -451,12 +486,12 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             twitter_handle=twitter_handle,
             telegram_group=social_data.get("telegram_url") if social_data else None,
             telegram_members=telegram_members,
-            # Wash trading metrics
-            wash_trading_score=wash_analysis["wash_trading_score"],
-            wash_trading_likelihood=wash_analysis["wash_trading_likelihood"],
-            unique_traders_24h=market_data.get("unique_wallets_24h"),
+            # Wash trading metrics (use combined scores)
+            wash_trading_score=combined_wash_score,
+            wash_trading_likelihood=wash_trading_likelihood,
+            unique_traders_24h=helius_analysis.get("unique_traders") or market_data.get("unique_wallets_24h"),
             volume_24h_usd=market_data.get("volume_24h", 0),
-            txns_24h_total=market_data.get("txns_24h", {}).get("buys", 0) + market_data.get("txns_24h", {}).get("sells", 0),
+            txns_24h_total=helius_analysis.get("total_transactions") or (market_data.get("txns_24h", {}).get("buys", 0) + market_data.get("txns_24h", {}).get("sells", 0)),
             airdrop_likelihood=wash_analysis.get("airdrop_likelihood"),
             liquidity_usd=market_data.get("liquidity_usd"),
             price_change_24h=market_data.get("price_change_24h"),
