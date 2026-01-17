@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     # Anthropic Claude API (for fraud detection)
     anthropic_api_key: Optional[str] = None
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Strip whitespace and newlines from API keys
+        if self.anthropic_api_key:
+            self.anthropic_api_key = self.anthropic_api_key.strip().replace('\n', '').replace('\r', '')
+        if self.helius_api_key:
+            self.helius_api_key = self.helius_api_key.strip().replace('\n', '').replace('\r', '')
+
     # Optional APIs
     solscan_api_key: Optional[str] = None
 

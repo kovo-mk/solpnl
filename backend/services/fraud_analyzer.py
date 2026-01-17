@@ -13,7 +13,14 @@ class FraudAnalyzer:
 
     def __init__(self, api_key: Optional[str] = None):
         final_key = api_key or settings.anthropic_api_key
-        logger.info(f"Initializing FraudAnalyzer with API key length: {len(final_key) if final_key else 0}")
+        if final_key:
+            # Strip any whitespace that might have been added
+            final_key = final_key.strip()
+            logger.info(f"Initializing FraudAnalyzer with API key length: {len(final_key)}")
+            logger.info(f"API key starts with: {final_key[:15]}...")
+            logger.info(f"API key ends with: ...{final_key[-10:]}")
+        else:
+            logger.warning("No API key provided to FraudAnalyzer!")
         self.client = Anthropic(api_key=final_key)
 
     async def analyze_token(
