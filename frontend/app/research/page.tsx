@@ -516,7 +516,7 @@ export default function ResearchPage() {
                   )}
 
                   {/* Liquidity */}
-                  {report.liquidity_usd !== null && report.liquidity_usd > 0 && (
+                  {report.liquidity_usd !== null && report.liquidity_usd !== undefined && report.liquidity_usd > 0 && (
                     <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                       <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Liquidity</div>
                       <div className="text-2xl font-bold text-gray-900 dark:text-white">
