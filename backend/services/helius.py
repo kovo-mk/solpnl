@@ -820,9 +820,53 @@ class HeliusService:
             logger.error(f"Error fetching DexScreener data: {e}")
             return {}
 
+    async def get_dexscreener_holder_count(self, token_address: str) -> Optional[int]:
+        """
+        Scrape holder count from DexScreener website (fallback when Solscan API unavailable).
+
+        Args:
+            token_address: Token mint address
+
+        Returns:
+            Holder count or None
+        """
+        try:
+            url = f"https://dexscreener.com/solana/{token_address}"
+            timeout = aiohttp.ClientTimeout(total=15)
+
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status != 200:
+                        logger.warning(f"DexScreener website returned {response.status}")
+                        return None
+
+                    html = await response.text()
+
+                    # Look for holder count in embedded JSON data
+                    # Pattern: {"count":602,"totalSupply":"...","holders":[...]}
+                    import re
+                    holder_match = re.search(r'\{"count":(\d+),"totalSupply".*?"holders":\[', html)
+
+                    if holder_match:
+                        holder_count = int(holder_match.group(1))
+                        logger.info(f"Scraped holder count from DexScreener: {holder_count}")
+                        return holder_count
+                    else:
+                        logger.warning("Could not find holder count in DexScreener HTML")
+                        return None
+
+        except Exception as e:
+            logger.error(f"Error scraping DexScreener holder count: {e}")
+            return None
+
     async def get_solscan_token_meta(self, token_address: str) -> Dict[str, Any]:
         """
         Fetch token metadata from Solscan Pro API including holder count.
+        Falls back to DexScreener web scraping if Solscan API unavailable.
 
         Args:
             token_address: Token mint address
@@ -833,9 +877,11 @@ class HeliusService:
         try:
             from config import settings
 
+            # Try Solscan API first if key is configured
             if not settings.solscan_api_key:
-                logger.warning("Solscan API key not configured, skipping holder count fetch")
-                return {}
+                logger.info("Solscan API key not configured, using DexScreener scraper")
+                holder_count = await self.get_dexscreener_holder_count(token_address)
+                return {"holder_count": holder_count} if holder_count else {}
 
             url = f"https://pro-api.solscan.io/v2.0/token/meta"
             params = {"address": token_address}
@@ -848,14 +894,17 @@ class HeliusService:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url, params=params, headers=headers) as response:
                     if response.status != 200:
-                        logger.warning(f"Solscan returned {response.status} for {token_address}")
-                        return {}
+                        logger.warning(f"Solscan API returned {response.status}, falling back to DexScreener scraper")
+                        # Fallback to DexScreener web scraping
+                        holder_count = await self.get_dexscreener_holder_count(token_address)
+                        return {"holder_count": holder_count} if holder_count else {}
 
                     data = await response.json()
 
                     if not data.get("success"):
-                        logger.warning(f"Solscan request unsuccessful for {token_address}")
-                        return {}
+                        logger.warning(f"Solscan request unsuccessful, falling back to DexScreener scraper")
+                        holder_count = await self.get_dexscreener_holder_count(token_address)
+                        return {"holder_count": holder_count} if holder_count else {}
 
                     return {
                         "holder_count": data.get("holder", 0),
@@ -868,8 +917,10 @@ class HeliusService:
                     }
 
         except Exception as e:
-            logger.error(f"Error fetching Solscan token meta: {e}")
-            return {}
+            logger.error(f"Error fetching Solscan token meta, falling back to DexScreener: {e}")
+            # Final fallback to DexScreener
+            holder_count = await self.get_dexscreener_holder_count(token_address)
+            return {"holder_count": holder_count} if holder_count else {}
 
     async def get_telegram_info(self, telegram_url: str) -> Dict[str, Any]:
         """
