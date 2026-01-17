@@ -267,7 +267,7 @@ Respond ONLY with valid JSON in this exact format:
             logger.info("Calling Claude API for fraud analysis...")
             logger.info(f"Using API key prefix: {str(self.client.api_key)[:15] if self.client.api_key else 'None'}...")
             response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",  # Use Sonnet (more widely available)
+                model="claude-3-opus-20240229",  # Use Claude 3 Opus (most capable, widely available)
                 max_tokens=500,
                 temperature=0.3,  # Lower temp for consistent analysis
                 messages=[{"role": "user", "content": prompt}],
