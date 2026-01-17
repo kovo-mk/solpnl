@@ -820,15 +820,15 @@ class HeliusService:
             logger.error(f"Error fetching DexScreener data: {e}")
             return {}
 
-    async def get_dexscreener_holder_count(self, token_address: str) -> Optional[int]:
+    async def get_dexscreener_data(self, token_address: str) -> Dict[str, Any]:
         """
-        Scrape holder count from DexScreener website (fallback when Solscan API unavailable).
+        Scrape data from DexScreener website including holder count and social links.
 
         Args:
             token_address: Token mint address
 
         Returns:
-            Holder count or None
+            Dict with holder_count, twitter_handle, telegram_url, website
         """
         try:
             url = f"https://dexscreener.com/solana/{token_address}"
@@ -842,26 +842,62 @@ class HeliusService:
                 async with session.get(url, headers=headers) as response:
                     if response.status != 200:
                         logger.warning(f"DexScreener website returned {response.status}")
-                        return None
+                        return {}
 
                     html = await response.text()
-
-                    # Look for holder count in embedded JSON data
-                    # Pattern: {"count":602,"totalSupply":"...","holders":[...]}
                     import re
-                    holder_match = re.search(r'\{"count":(\d+),"totalSupply".*?"holders":\[', html)
+                    result = {}
 
+                    # Scrape holder count
+                    # Pattern: {"count":602,"totalSupply":"...","holders":[...]}
+                    holder_match = re.search(r'\{"count":(\d+),"totalSupply".*?"holders":\[', html)
                     if holder_match:
-                        holder_count = int(holder_match.group(1))
-                        logger.info(f"Scraped holder count from DexScreener: {holder_count}")
-                        return holder_count
-                    else:
-                        logger.warning("Could not find holder count in DexScreener HTML")
-                        return None
+                        result["holder_count"] = int(holder_match.group(1))
+                        logger.info(f"Scraped holder count: {result['holder_count']}")
+
+                    # Scrape Twitter handle
+                    # Pattern: {"type":"twitter","label":undefined,"url":"https://x.com/handle"}
+                    twitter_match = re.search(r'https://(?:twitter|x)\.com/(\w+)', html)
+                    if twitter_match:
+                        handle = twitter_match.group(1)
+                        # Filter out common non-token accounts
+                        if handle.lower() not in ['dexscreener', 'solana', 'twitter', 'x']:
+                            result["twitter_handle"] = handle
+                            logger.info(f"Scraped Twitter handle: @{handle}")
+
+                    # Scrape Telegram channel
+                    # Pattern: {"type":"telegram","label":undefined,"url":"https://t.me/channel"}
+                    telegram_match = re.search(r'https://t\.me/([a-zA-Z0-9_]+)', html)
+                    if telegram_match:
+                        channel = telegram_match.group(1)
+                        result["telegram_url"] = f"https://t.me/{channel}"
+                        logger.info(f"Scraped Telegram: {channel}")
+
+                    # Scrape website
+                    # Pattern: {"type":undefined,"label":"Website","url":"https://..."}
+                    website_match = re.search(r'\{"[^}]*"Website"[^}]*"url":"([^"]+)"', html)
+                    if website_match:
+                        result["website"] = website_match.group(1).replace(r'\u002F', '/')
+                        logger.info(f"Scraped website: {result['website']}")
+
+                    return result
 
         except Exception as e:
-            logger.error(f"Error scraping DexScreener holder count: {e}")
-            return None
+            logger.error(f"Error scraping DexScreener data: {e}")
+            return {}
+
+    async def get_dexscreener_holder_count(self, token_address: str) -> Optional[int]:
+        """
+        Scrape holder count from DexScreener (for backwards compatibility).
+
+        Args:
+            token_address: Token mint address
+
+        Returns:
+            Holder count or None
+        """
+        data = await self.get_dexscreener_data(token_address)
+        return data.get("holder_count")
 
     async def get_solscan_token_meta(self, token_address: str) -> Dict[str, Any]:
         """

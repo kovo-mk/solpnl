@@ -299,6 +299,32 @@ export default function ResearchPage() {
         {/* Report Display */}
         {report && !loading && (
           <div className="space-y-6">
+            {/* Pump.fun Warning */}
+            {report.is_pump_fun && (
+              <div className="rounded-xl shadow-lg p-6 border-2 bg-purple-50 dark:bg-purple-900/20 border-purple-500">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-6 h-6 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-1" />
+                  <div>
+                    <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 mb-2">
+                      Pump.fun Token Detected
+                    </h3>
+                    <p className="text-purple-800 dark:text-purple-200">
+                      This token was created on pump.fun (address ends with &quot;pump&quot;). These tokens often have:
+                    </p>
+                    <ul className="list-disc list-inside mt-2 space-y-1 text-purple-800 dark:text-purple-200">
+                      <li>High volatility and speculation</li>
+                      <li>Anonymous or pseudonymous developers</li>
+                      <li>Minimal project infrastructure</li>
+                      <li>Higher risk of rug pulls</li>
+                    </ul>
+                    <p className="mt-3 text-sm text-purple-700 dark:text-purple-300 font-medium">
+                      Exercise extreme caution and only invest what you can afford to lose.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Risk Score Card */}
             <div className={`rounded-xl shadow-lg p-8 border-2 ${getRiskBgColor(report.risk_level)}`}>
               <div className="flex items-center justify-between mb-6">
@@ -341,8 +367,20 @@ export default function ResearchPage() {
                 <div className="text-3xl font-bold text-gray-900 dark:text-white">{report.top_10_holder_percentage.toFixed(1)}%</div>
               </div>
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Whale Count</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-2">
+                  Whale Count
+                  <span className="group relative cursor-help">
+                    <AlertCircle className="w-4 h-4 text-gray-400" />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-64 p-3 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg shadow-lg z-10">
+                      Number of wallets holding more than 5% of total supply. High whale counts indicate concentration risk - these large holders can dump tokens and crash the price.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
+                    </div>
+                  </span>
+                </div>
                 <div className="text-3xl font-bold text-gray-900 dark:text-white">{report.whale_count}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Wallets holding &gt;5% supply
+                </div>
               </div>
             </div>
 

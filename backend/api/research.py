@@ -300,7 +300,7 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         # 2. Get token mint info (authorities)
         mint_info = await helius.get_token_mint_info(token_address)
 
-        # 3. Get DexScreener data (price, liquidity, socials)
+        # 3. Get DexScreener data (price, liquidity, socials, holder count)
         logger.info(f"Fetching DexScreener data for {token_address}")
         dex_data = await helius.get_dexscreener_data(token_address)
 
@@ -320,23 +320,35 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         contract_info["liquidity_usd"] = dex_data.get("liquidity_usd", 0)
         contract_info["market_cap"] = dex_data.get("market_cap", 0)
 
-        # Detect pump.fun tokens
-        contract_info["is_pump_fun"] = contract_info.get("name", "").lower().endswith("pump") or \
-                                       "pump.fun" in contract_info.get("description", "").lower() or \
-                                       dex_data.get("dex", "").lower() == "raydium" and dex_data.get("pair_created_at", 0) > 1700000000
+        # Detect pump.fun tokens by address suffix
+        contract_info["is_pump_fun"] = token_address.endswith("pump")
 
-        # Build social data from DexScreener
+        # Build social data from DexScreener (now includes Twitter handle, Telegram channel, website)
         social_data = {}
-        if dex_data.get("twitter"):
-            social_data["twitter_url"] = dex_data["twitter"]
-        if dex_data.get("telegram"):
-            social_data["telegram_url"] = dex_data["telegram"]
+        twitter_handle = None
+
+        if dex_data.get("twitter_handle"):
+            twitter_handle = dex_data["twitter_handle"]
+            social_data["twitter_url"] = f"https://x.com/{twitter_handle}"
+            logger.info(f"Found Twitter: @{twitter_handle}")
+
+        telegram_source = None
+        if dex_data.get("telegram_url"):
+            telegram_source = dex_data["telegram_url"]
+            social_data["telegram_url"] = telegram_source
+            logger.info(f"Found Telegram: {telegram_source}")
+
         if dex_data.get("website"):
             social_data["website"] = dex_data["website"]
+            logger.info(f"Found website: {social_data['website']}")
 
-        # Fetch Telegram info if URL provided (either from user or DexScreener)
+        # Use user-provided telegram_url if available, otherwise use scraped
+        if telegram_url:
+            telegram_source = telegram_url
+            social_data["telegram_url"] = telegram_url
+
+        # Fetch Telegram member count
         telegram_members = None
-        telegram_source = telegram_url or dex_data.get("telegram")
         if telegram_source:
             logger.info(f"Fetching Telegram info for {telegram_source}")
             telegram_info = await helius.get_telegram_info(telegram_source)
@@ -369,12 +381,7 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             db.commit()
 
         # 5. Create analysis report
-        # Extract Twitter handle from URL if available
-        twitter_handle = None
-        if social_data.get("twitter_url"):
-            twitter_url = social_data["twitter_url"]
-            if "twitter.com/" in twitter_url or "x.com/" in twitter_url:
-                twitter_handle = twitter_url.split("/")[-1].replace("@", "")
+        # twitter_handle already extracted from DexScreener above
 
         report = TokenAnalysisReport(
             token_address=token_address,
