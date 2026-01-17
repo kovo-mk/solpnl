@@ -23,6 +23,7 @@ router = APIRouter(prefix="/research", tags=["research"])
 # Request/Response models
 class AnalyzeTokenRequest(BaseModel):
     token_address: str = Field(..., description="Solana token mint address")
+    telegram_url: Optional[str] = Field(None, description="Telegram channel/group URL (optional)")
     force_refresh: bool = Field(False, description="Force new analysis even if cached")
 
 
@@ -152,6 +153,7 @@ async def analyze_token(
         run_token_analysis,
         request_id=analysis_request.id,
         token_address=request.token_address,
+        telegram_url=request.telegram_url,
     )
 
     return AnalysisStatusResponse(
@@ -260,7 +262,7 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
 
 
 # Background task function
-async def run_token_analysis(request_id: int, token_address: str):
+async def run_token_analysis(request_id: int, token_address: str, telegram_url: Optional[str] = None):
     """Background task to run full token analysis."""
     logger.info(f"=== STARTING BACKGROUND ANALYSIS TASK for {token_address} ===")
     from database import SessionLocal
@@ -325,6 +327,17 @@ async def run_token_analysis(request_id: int, token_address: str):
         if dex_data.get("website"):
             social_data["website"] = dex_data["website"]
 
+        # Fetch Telegram info if URL provided (either from user or DexScreener)
+        telegram_members = None
+        telegram_source = telegram_url or dex_data.get("telegram")
+        if telegram_source:
+            logger.info(f"Fetching Telegram info for {telegram_source}")
+            telegram_info = await helius.get_telegram_info(telegram_source)
+            if telegram_info.get("member_count"):
+                telegram_members = telegram_info["member_count"]
+                social_data["telegram_members"] = telegram_members
+                logger.info(f"Telegram has {telegram_members} members")
+
         # 5. Run fraud analysis
         logger.info(f"Running fraud analysis for {token_address}")
         analysis_result = await analyzer.analyze_token(
@@ -371,6 +384,7 @@ async def run_token_analysis(request_id: int, token_address: str):
             has_mint_authority=contract_info.get("has_mint_authority"),
             twitter_handle=twitter_handle,
             telegram_group=social_data.get("telegram_url") if social_data else None,
+            telegram_members=telegram_members,
             claude_summary=analysis_result["claude_summary"],
             claude_verdict=analysis_result["claude_verdict"],
             cached_until=datetime.now(timezone.utc) + timedelta(hours=24),  # Cache for 24h

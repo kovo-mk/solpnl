@@ -795,6 +795,10 @@ class HeliusService:
                         elif social_type == "telegram":
                             telegram = social.get("url")
 
+                    # Extract transaction counts (includes unique addresses/holders)
+                    txns = main_pair.get("txns", {})
+                    total_txns_24h = (txns.get("h24", {}).get("buys", 0) or 0) + (txns.get("h24", {}).get("sells", 0) or 0)
+
                     return {
                         "price_usd": float(main_pair.get("priceUsd", 0) or 0),
                         "price_native": float(main_pair.get("priceNative", 0) or 0),
@@ -805,6 +809,7 @@ class HeliusService:
                         "dex": main_pair.get("dexId", "unknown"),
                         "pair_address": main_pair.get("pairAddress"),
                         "price_change_24h": float(main_pair.get("priceChange", {}).get("h24", 0) or 0),
+                        "total_txns_24h": total_txns_24h,
                         "website": website,
                         "twitter": twitter,
                         "telegram": telegram,
@@ -813,6 +818,76 @@ class HeliusService:
 
         except Exception as e:
             logger.error(f"Error fetching DexScreener data: {e}")
+            return {}
+
+    async def get_telegram_info(self, telegram_url: str) -> Dict[str, Any]:
+        """
+        Scrape Telegram channel/group info (member count, title).
+
+        Args:
+            telegram_url: Telegram channel or group URL (e.g., https://t.me/channel_name)
+
+        Returns:
+            Dict with member_count, title, description
+        """
+        try:
+            # Extract channel name from URL
+            if "t.me/" in telegram_url:
+                channel_name = telegram_url.split("t.me/")[-1].split("?")[0].strip("/")
+            else:
+                return {}
+
+            # Telegram's public preview page (no API key needed)
+            preview_url = f"https://t.me/{channel_name}"
+
+            timeout = aiohttp.ClientTimeout(total=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                }
+                async with session.get(preview_url, headers=headers) as response:
+                    if response.status != 200:
+                        logger.warning(f"Failed to fetch Telegram preview: {response.status}")
+                        return {}
+
+                    html = await response.text()
+
+                    # Parse member count from meta tags or page content
+                    member_count = None
+                    title = None
+                    description = None
+
+                    # Try to find member count in various formats
+                    import re
+
+                    # Look for "X subscribers" or "X members"
+                    subscriber_match = re.search(r'(\d[\d\s,]*)\s*(subscribers|members)', html, re.IGNORECASE)
+                    if subscriber_match:
+                        member_str = subscriber_match.group(1).replace(" ", "").replace(",", "")
+                        try:
+                            member_count = int(member_str)
+                        except:
+                            pass
+
+                    # Look for title in meta tags
+                    title_match = re.search(r'<meta property="og:title" content="([^"]+)"', html)
+                    if title_match:
+                        title = title_match.group(1)
+
+                    # Look for description
+                    desc_match = re.search(r'<meta property="og:description" content="([^"]+)"', html)
+                    if desc_match:
+                        description = desc_match.group(1)
+
+                    return {
+                        "member_count": member_count,
+                        "title": title,
+                        "description": description,
+                        "url": telegram_url,
+                    }
+
+        except Exception as e:
+            logger.error(f"Error fetching Telegram info: {e}")
             return {}
 
 
