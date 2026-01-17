@@ -42,7 +42,8 @@ class TokenReportResponse(BaseModel):
     summary: str
 
     # Holder stats
-    total_holders: int
+    total_holders: int  # Number of top holders analyzed (usually 20)
+    total_holder_count: Optional[int] = None  # Total holder count from Solscan
     top_10_holder_percentage: float
     whale_count: int
 
@@ -203,6 +204,7 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
         verdict=report.claude_verdict or "unknown",
         summary=report.claude_summary or "No summary available",
         total_holders=report.total_holders or 0,
+        total_holder_count=report.total_holder_count,
         top_10_holder_percentage=report.top_10_holder_percentage or 0.0,
         whale_count=report.whale_count or 0,
         is_pump_fun=report.is_pump_fun,
@@ -244,6 +246,7 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
         verdict=report.claude_verdict or "unknown",
         summary=report.claude_summary or "No summary available",
         total_holders=report.total_holders or 0,
+        total_holder_count=report.total_holder_count,
         top_10_holder_percentage=report.top_10_holder_percentage or 0.0,
         whale_count=report.whale_count or 0,
         is_pump_fun=report.is_pump_fun,
@@ -300,6 +303,10 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         # 3. Get DexScreener data (price, liquidity, socials)
         logger.info(f"Fetching DexScreener data for {token_address}")
         dex_data = await helius.get_dexscreener_data(token_address)
+
+        # 3.5. Get Solscan data (holder count, market data)
+        logger.info(f"Fetching Solscan token metadata for {token_address}")
+        solscan_data = await helius.get_solscan_token_meta(token_address)
 
         # 4. Get contract metadata
         contract_info = await helius.get_token_metadata(token_address)
@@ -377,6 +384,7 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             suspicious_patterns=json.dumps(analysis_result["suspicious_patterns"]),
             red_flags=json.dumps(analysis_result["red_flags"]),
             total_holders=analysis_result["total_holders"],
+            total_holder_count=solscan_data.get("holder_count") if solscan_data else None,
             top_10_holder_percentage=analysis_result["top_10_holder_percentage"],
             whale_count=analysis_result["whale_count"],
             is_pump_fun=contract_info.get("is_pump_fun", False),

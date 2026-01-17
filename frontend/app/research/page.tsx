@@ -15,7 +15,8 @@ interface TokenReport {
   risk_level: string;
   verdict: string;
   summary: string;
-  total_holders: number;
+  total_holders: number;  // Number analyzed (usually 20)
+  total_holder_count?: number | null;  // Total from Solscan
   top_10_holder_percentage: number;
   whale_count: number;
   is_pump_fun: boolean;
@@ -325,9 +326,15 @@ export default function ResearchPage() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Top Holders Analyzed</div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">{report.total_holders.toLocaleString()}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Largest {report.total_holders} wallets</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Total Holders</div>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {report.total_holder_count ? report.total_holder_count.toLocaleString() : 'N/A'}
+                </div>
+                {report.total_holder_count && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Analyzed top {report.total_holders}
+                  </div>
+                )}
               </div>
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
                 <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Top 10 Concentration</div>

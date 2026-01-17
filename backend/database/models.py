@@ -253,7 +253,8 @@ class TokenAnalysisReport(Base):
     red_flags = Column(Text, nullable=True)              # JSON: array of red flag objects
 
     # Holder stats
-    total_holders = Column(Integer, nullable=True)
+    total_holders = Column(Integer, nullable=True)  # Number of holders analyzed (usually 20)
+    total_holder_count = Column(Integer, nullable=True)  # Total holder count from Solscan
     top_10_holder_percentage = Column(Float, nullable=True)
     whale_count = Column(Integer, nullable=True)  # Holders with >5%
 

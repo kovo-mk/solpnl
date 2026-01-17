@@ -820,6 +820,57 @@ class HeliusService:
             logger.error(f"Error fetching DexScreener data: {e}")
             return {}
 
+    async def get_solscan_token_meta(self, token_address: str) -> Dict[str, Any]:
+        """
+        Fetch token metadata from Solscan Pro API including holder count.
+
+        Args:
+            token_address: Token mint address
+
+        Returns:
+            Dict with holder count, price, volume, market cap
+        """
+        try:
+            from config import settings
+
+            if not settings.solscan_api_key:
+                logger.warning("Solscan API key not configured, skipping holder count fetch")
+                return {}
+
+            url = f"https://pro-api.solscan.io/v2.0/token/meta"
+            params = {"address": token_address}
+            headers = {
+                "token": settings.solscan_api_key,
+                "accept": "application/json"
+            }
+            timeout = aiohttp.ClientTimeout(total=10)
+
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status != 200:
+                        logger.warning(f"Solscan returned {response.status} for {token_address}")
+                        return {}
+
+                    data = await response.json()
+
+                    if not data.get("success"):
+                        logger.warning(f"Solscan request unsuccessful for {token_address}")
+                        return {}
+
+                    return {
+                        "holder_count": data.get("holder", 0),
+                        "price_usd": float(data.get("price", 0) or 0),
+                        "volume_24h": float(data.get("volume_24h", 0) or 0),
+                        "market_cap": float(data.get("market_cap", 0) or 0),
+                        "supply": data.get("supply"),
+                        "creator": data.get("creator"),
+                        "created_time": data.get("created_time"),
+                    }
+
+        except Exception as e:
+            logger.error(f"Error fetching Solscan token meta: {e}")
+            return {}
+
     async def get_telegram_info(self, telegram_url: str) -> Dict[str, Any]:
         """
         Scrape Telegram channel/group info (member count, title).
