@@ -367,6 +367,29 @@ class WalletReputation(Base):
     )
 
 
+class SuspiciousWalletToken(Base):
+    """Tracks which suspicious wallets are associated with which tokens for network detection."""
+    __tablename__ = "suspicious_wallet_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(255), nullable=False, index=True)
+    token_address = Column(String(255), nullable=False, index=True)
+    report_id = Column(Integer, ForeignKey("token_analysis_reports.id", ondelete="CASCADE"), nullable=False)
+
+    # Pattern info
+    pattern_type = Column(String(50), nullable=True)  # repeated_pairs, bot_activity, isolated_trader
+    trade_count = Column(Integer, nullable=True)  # How many times this wallet traded the token
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint('wallet_address', 'token_address', 'report_id', name='unique_wallet_token_report'),
+        Index('ix_suspicious_wallet_address', 'wallet_address'),
+        Index('ix_suspicious_token_address', 'token_address'),
+    )
+
+
 class SolscanTransferCache(Base):
     """Cache for Solscan Pro API token transfer data to reduce API costs."""
     __tablename__ = "solscan_transfer_cache"

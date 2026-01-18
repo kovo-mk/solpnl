@@ -10,6 +10,21 @@ interface RedFlag {
   description: string;
 }
 
+interface RelatedToken {
+  token_address: string;
+  token_name: string | null;
+  token_symbol: string | null;
+  token_logo_url: string | null;
+  risk_score: number;
+  risk_level: string;
+  wash_trading_score: number | null;
+  shared_wallet_count: number;
+  total_suspicious_wallets: number;
+  overlap_percentage: number;
+  report_id: number;
+  analyzed_at: string;
+}
+
 interface TokenReport {
   token_address: string;
   risk_score: number;
@@ -104,6 +119,8 @@ export default function ResearchPage() {
   const [isDark, setIsDark] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const [selectedPattern, setSelectedPattern] = useState<{name: string, transactions: string[]} | null>(null);
+  const [relatedTokens, setRelatedTokens] = useState<RelatedToken[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -202,6 +219,12 @@ export default function ResearchPage() {
 
           const reportData = await reportRes.json();
           setReport(reportData);
+
+          // Fetch related tokens in the background
+          if (reportData.token_address) {
+            fetchRelatedTokens(reportData.token_address);
+          }
+
           setLoading(false);
         } else if (status.status === 'failed') {
           setError('Analysis failed. Please try again.');
@@ -216,6 +239,28 @@ export default function ResearchPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       setLoading(false);
+    }
+  };
+
+  const fetchRelatedTokens = async (tokenAddress: string) => {
+    setLoadingRelated(true);
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const response = await fetch(`${API_BASE}/research/related-tokens/${tokenAddress}`);
+
+      if (!response.ok) {
+        console.error('Failed to fetch related tokens');
+        setRelatedTokens([]);
+        return;
+      }
+
+      const data = await response.json();
+      setRelatedTokens(data.related_tokens || []);
+    } catch (err) {
+      console.error('Error fetching related tokens:', err);
+      setRelatedTokens([]);
+    } finally {
+      setLoadingRelated(false);
     }
   };
 
@@ -1114,6 +1159,109 @@ export default function ResearchPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Related Manipulated Tokens */}
+            {relatedTokens.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🕸️ Related Manipulated Tokens</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  These tokens share suspicious wallets with the current token, indicating possible coordinated manipulation networks.
+                </p>
+                <div className="space-y-3">
+                  {relatedTokens.map((token, idx) => (
+                    <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-start gap-3">
+                        {/* Token logo */}
+                        {token.token_logo_url && (
+                          <img
+                            src={token.token_logo_url}
+                            alt={token.token_symbol || 'Token'}
+                            className="w-10 h-10 rounded-full flex-shrink-0"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          {/* Token name and symbol */}
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                              {token.token_name || 'Unknown Token'}
+                            </h3>
+                            {token.token_symbol && (
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                ({token.token_symbol})
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Wallet overlap info */}
+                          <div className="flex items-center gap-4 mb-2 text-sm">
+                            <span className="text-gray-700 dark:text-gray-300">
+                              <span className="font-semibold text-orange-600 dark:text-orange-400">
+                                {token.shared_wallet_count}
+                              </span> shared suspicious wallets ({token.overlap_percentage}% overlap)
+                            </span>
+                          </div>
+
+                          {/* Risk metrics */}
+                          <div className="flex items-center gap-4 text-sm flex-wrap">
+                            <div>
+                              <span className="text-gray-600 dark:text-gray-400">Risk Score: </span>
+                              <span className={`font-semibold ${getRiskColor(token.risk_level)}`}>
+                                {token.risk_score}/100
+                              </span>
+                            </div>
+                            {token.wash_trading_score !== null && token.wash_trading_score !== undefined && (
+                              <div>
+                                <span className="text-gray-600 dark:text-gray-400">Wash Trading: </span>
+                                <span className={`font-semibold ${token.wash_trading_score > 70 ? 'text-red-600 dark:text-red-400' : token.wash_trading_score > 40 ? 'text-orange-600 dark:text-orange-400' : 'text-yellow-600 dark:text-yellow-400'}`}>
+                                  {token.wash_trading_score}/100
+                                </span>
+                              </div>
+                            )}
+                            <div>
+                              <span className="text-gray-600 dark:text-gray-400">Risk Level: </span>
+                              <span className={`font-semibold uppercase ${getRiskColor(token.risk_level)}`}>
+                                {token.risk_level}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Token address (truncated) */}
+                          <div className="mt-2 text-xs text-gray-500 dark:text-gray-500 font-mono">
+                            {token.token_address.slice(0, 8)}...{token.token_address.slice(-8)}
+                          </div>
+
+                          {/* View report button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTokenAddress(token.token_address);
+                              setReport(null);
+                              setRelatedTokens([]);
+                              analyzeToken();
+                            }}
+                            className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                          >
+                            View Full Report →
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {loadingRelated && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🕸️ Related Manipulated Tokens</h2>
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600 dark:text-gray-400">Loading related tokens...</span>
+                </div>
               </div>
             )}
 

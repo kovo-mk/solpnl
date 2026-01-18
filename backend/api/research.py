@@ -582,6 +582,47 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         db.commit()
         db.refresh(report)
 
+        # 5.5. Save suspicious wallets for cross-token network detection
+        from database.models import SuspiciousWalletToken
+
+        suspicious_wallets = helius_analysis.get("suspicious_wallets", [])
+        for wallet_info in suspicious_wallets[:50]:  # Limit to top 50 wallets
+            wallet_address = wallet_info.get("wallet1")
+            pattern = wallet_info.get("pattern", "unknown")
+            trade_count = wallet_info.get("trade_count", 0)
+
+            if wallet_address:
+                try:
+                    suspicious_wallet_entry = SuspiciousWalletToken(
+                        wallet_address=wallet_address,
+                        token_address=token_address,
+                        report_id=report.id,
+                        pattern_type=pattern,
+                        trade_count=trade_count
+                    )
+                    db.add(suspicious_wallet_entry)
+                except Exception as e:
+                    logger.warning(f"Failed to save suspicious wallet {wallet_address}: {e}")
+                    # Continue even if one wallet fails
+
+            # Also save wallet2 from pairs
+            wallet2 = wallet_info.get("wallet2")
+            if wallet2:
+                try:
+                    suspicious_wallet_entry = SuspiciousWalletToken(
+                        wallet_address=wallet2,
+                        token_address=token_address,
+                        report_id=report.id,
+                        pattern_type=wallet_info.get("pattern", "unknown"),
+                        trade_count=wallet_info.get("trade_count", 0)
+                    )
+                    db.add(suspicious_wallet_entry)
+                except Exception as e:
+                    logger.warning(f"Failed to save suspicious wallet {wallet2}: {e}")
+
+        db.commit()
+        logger.info(f"Saved {len(suspicious_wallets)} suspicious wallet relationships for {token_address}")
+
         # 6. Update request status
         analysis_request.status = "completed"
         analysis_request.report_id = report.id
@@ -601,3 +642,75 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
 
     finally:
         db.close()
+
+
+@router.get("/related-tokens/{token_address}")
+async def get_related_manipulated_tokens(token_address: str, db: Session = Depends(get_db)):
+    """
+    Find other tokens that share suspicious wallets with the given token.
+    This helps identify coordinated manipulation networks.
+    """
+    from database.models import SuspiciousWalletToken
+    from sqlalchemy import func, and_
+
+    # Get suspicious wallets for this token
+    suspicious_wallets_query = db.query(SuspiciousWalletToken.wallet_address).filter(
+        SuspiciousWalletToken.token_address == token_address
+    ).distinct()
+
+    suspicious_wallet_addresses = [row[0] for row in suspicious_wallets_query.all()]
+
+    if not suspicious_wallet_addresses:
+        return {"related_tokens": [], "message": "No suspicious wallets found for this token"}
+
+    # Find other tokens that share these wallets
+    # Group by token_address and count how many wallets overlap
+    related_tokens_query = (
+        db.query(
+            SuspiciousWalletToken.token_address,
+            func.count(func.distinct(SuspiciousWalletToken.wallet_address)).label("shared_wallet_count")
+        )
+        .filter(
+            and_(
+                SuspiciousWalletToken.wallet_address.in_(suspicious_wallet_addresses),
+                SuspiciousWalletToken.token_address != token_address  # Exclude the current token
+            )
+        )
+        .group_by(SuspiciousWalletToken.token_address)
+        .having(func.count(func.distinct(SuspiciousWalletToken.wallet_address)) >= 2)  # At least 2 shared wallets
+        .order_by(func.count(func.distinct(SuspiciousWalletToken.wallet_address)).desc())
+        .limit(10)  # Top 10 related tokens
+    )
+
+    related_tokens_data = related_tokens_query.all()
+
+    # Fetch report details for each related token
+    related_tokens = []
+    for token_addr, shared_count in related_tokens_data:
+        # Get the most recent report for this token
+        report = db.query(TokenAnalysisReport).filter(
+            TokenAnalysisReport.token_address == token_addr
+        ).order_by(TokenAnalysisReport.created_at.desc()).first()
+
+        if report:
+            related_tokens.append({
+                "token_address": token_addr,
+                "token_name": report.token_name,
+                "token_symbol": report.token_symbol,
+                "token_logo_url": report.token_logo_url,
+                "risk_score": report.risk_score,
+                "risk_level": report.risk_level,
+                "wash_trading_score": report.wash_trading_score,
+                "shared_wallet_count": shared_count,
+                "total_suspicious_wallets": len(suspicious_wallet_addresses),
+                "overlap_percentage": round((shared_count / len(suspicious_wallet_addresses)) * 100, 1),
+                "report_id": report.id,
+                "analyzed_at": report.created_at
+            })
+
+    return {
+        "token_address": token_address,
+        "total_suspicious_wallets": len(suspicious_wallet_addresses),
+        "related_tokens": related_tokens,
+        "message": f"Found {len(related_tokens)} related tokens sharing suspicious wallets"
+    }
