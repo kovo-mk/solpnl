@@ -900,6 +900,7 @@ export default function ResearchPage() {
                         <div
                           className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                           onClick={() => {
+                            if (!report) return;
                             const txs = report.pattern_transactions?.['extreme_wash_trading'] || [];
                             if (txs.length > 0) {
                               setSelectedPattern({name: 'Extreme Wash Trading', transactions: txs});
@@ -921,6 +922,7 @@ export default function ResearchPage() {
                         <div
                           className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
                           onClick={() => {
+                            if (!report) return;
                             const txs = report.pattern_transactions?.['repeated_wallet_pairs'] || [];
                             if (txs.length > 0) {
                               setSelectedPattern({name: 'Repeated Trading Pairs', transactions: txs});
@@ -958,6 +960,7 @@ export default function ResearchPage() {
                         <div
                           className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                           onClick={() => {
+                            if (!report) return;
                             const txs = report.pattern_transactions?.['bot_trading_detected'] || [];
                             if (txs.length > 0) {
                               setSelectedPattern({name: 'Bot Trading Detected', transactions: txs});
