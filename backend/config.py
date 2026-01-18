@@ -70,3 +70,9 @@ if settings.HELIUS_API_KEY:
     logger.info(f"HELIUS_API_KEY prefix: {settings.HELIUS_API_KEY[:10]}...")
 else:
     logger.warning("HELIUS_API_KEY is NOT set!")
+
+logger.info(f"SOLSCAN_API_KEY loaded: {bool(settings.SOLSCAN_API_KEY)}")
+if settings.SOLSCAN_API_KEY:
+    logger.info(f"SOLSCAN_API_KEY prefix: {settings.SOLSCAN_API_KEY[:10]}...")
+else:
+    logger.warning("SOLSCAN_API_KEY is NOT set!")
