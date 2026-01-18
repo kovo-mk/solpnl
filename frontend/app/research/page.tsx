@@ -1265,6 +1265,28 @@ export default function ResearchPage() {
               </div>
             )}
 
+            {/* Show placeholder when no related tokens found */}
+            {!loadingRelated && relatedTokens.length === 0 && report && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🕸️ Related Manipulated Tokens</h2>
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                  <div className="text-center">
+                    <div className="text-4xl mb-3">🔍</div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Related Tokens Found</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      This token doesn't share suspicious wallets with other analyzed tokens yet.
+                    </p>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                      <p className="text-xs text-gray-700 dark:text-gray-300">
+                        <strong>How it works:</strong> When you analyze multiple tokens, this section will show tokens that share
+                        2+ suspicious wallets, helping you identify coordinated manipulation networks and scam rings.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Social/Technical Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Social */}
