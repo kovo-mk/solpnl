@@ -633,8 +633,18 @@ class WashTradingAnalyzer:
 
                 if transactions:
                     logger.info(f"Solscan Pro returned {len(transactions)} transactions")
-                    # Analyze and return
-                    return self._analyze_transaction_patterns(token_address, transactions)
+
+                    # Analyze with time period breakdowns
+                    overall_analysis = self._analyze_transaction_patterns(token_address, transactions)
+
+                    # Add time period breakdowns (24h, 7d, 30d)
+                    overall_analysis["time_periods"] = {
+                        "24h": self._analyze_transaction_patterns(token_address, transactions, time_period_days=1),
+                        "7d": self._analyze_transaction_patterns(token_address, transactions, time_period_days=7),
+                        "30d": self._analyze_transaction_patterns(token_address, transactions, time_period_days=30)
+                    }
+
+                    return overall_analysis
                 else:
                     logger.warning("Solscan Pro returned no transactions, trying fallback...")
 
@@ -706,8 +716,17 @@ class WashTradingAnalyzer:
 
             logger.info(f"Analyzing {len(transactions)} transactions from last {days_back} days...")
 
-            # Analyze trading patterns
-            return self._analyze_transaction_patterns(token_address, transactions)
+            # Analyze trading patterns with time period breakdowns
+            overall_analysis = self._analyze_transaction_patterns(token_address, transactions)
+
+            # Add time period breakdowns (24h, 7d, 30d)
+            overall_analysis["time_periods"] = {
+                "24h": self._analyze_transaction_patterns(token_address, transactions, time_period_days=1),
+                "7d": self._analyze_transaction_patterns(token_address, transactions, time_period_days=7),
+                "30d": self._analyze_transaction_patterns(token_address, transactions, time_period_days=30)
+            }
+
+            return overall_analysis
 
         except Exception as e:
             logger.error(f"Error fetching Helius transactions: {e}")
@@ -716,9 +735,24 @@ class WashTradingAnalyzer:
     def _analyze_transaction_patterns(
         self,
         token_address: str,
-        transactions: List[Dict]
+        transactions: List[Dict],
+        time_period_days: Optional[int] = None
     ) -> Dict:
-        """Analyze transaction patterns for wash trading indicators."""
+        """
+        Analyze transaction patterns for wash trading indicators.
+
+        Args:
+            token_address: Token mint address
+            transactions: List of transactions to analyze
+            time_period_days: Optional filter for specific time period (1, 7, or 30 days)
+        """
+
+        # Filter transactions by time period if specified
+        if time_period_days:
+            current_time = int(datetime.now().timestamp())
+            cutoff_time = current_time - (time_period_days * 24 * 60 * 60)
+            transactions = [tx for tx in transactions if tx.get("timestamp", 0) >= cutoff_time]
+            logger.info(f"Filtered to {len(transactions)} transactions in last {time_period_days} days")
 
         # Known DEX programs and liquidity pools to filter out
         KNOWN_DEX_PROGRAMS = {

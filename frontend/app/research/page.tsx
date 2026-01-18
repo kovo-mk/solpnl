@@ -47,6 +47,30 @@ interface TokenReport {
     total: number;
     by_type: Record<string, number>;
   };
+  // Time period breakdowns
+  time_periods?: {
+    "24h"?: {
+      total_transactions: number;
+      unique_traders: number;
+      wash_trading_score: number;
+      suspicious_wallet_pairs: number;
+      bot_wallets_detected: number;
+    };
+    "7d"?: {
+      total_transactions: number;
+      unique_traders: number;
+      wash_trading_score: number;
+      suspicious_wallet_pairs: number;
+      bot_wallets_detected: number;
+    };
+    "30d"?: {
+      total_transactions: number;
+      unique_traders: number;
+      wash_trading_score: number;
+      suspicious_wallet_pairs: number;
+      bot_wallets_detected: number;
+    };
+  };
   // Other
   red_flags: RedFlag[];
   suspicious_patterns: string[];
@@ -718,6 +742,110 @@ export default function ResearchPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Time Period Breakdowns */}
+                {report.time_periods && (
+                  <div className="mb-6 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-5 border border-purple-200 dark:border-purple-700">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">⏰ Activity by Time Period</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* 24h Period */}
+                      {report.time_periods["24h"] && (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <div className="text-sm font-semibold text-purple-600 dark:text-purple-400 mb-3">Last 24 Hours</div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Transactions:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["24h"].total_transactions}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Unique Traders:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["24h"].unique_traders}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Risk Score:</span>
+                              <span className={`text-sm font-bold ${
+                                report.time_periods["24h"].wash_trading_score >= 75 ? 'text-red-600' :
+                                report.time_periods["24h"].wash_trading_score >= 50 ? 'text-orange-600' :
+                                report.time_periods["24h"].wash_trading_score >= 25 ? 'text-yellow-600' :
+                                'text-green-600'
+                              }`}>
+                                {report.time_periods["24h"].wash_trading_score}/100
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Suspicious Pairs:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["24h"].suspicious_wallet_pairs}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 7d Period */}
+                      {report.time_periods["7d"] && (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <div className="text-sm font-semibold text-blue-600 dark:text-blue-400 mb-3">Last 7 Days</div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Transactions:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["7d"].total_transactions}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Unique Traders:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["7d"].unique_traders}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Risk Score:</span>
+                              <span className={`text-sm font-bold ${
+                                report.time_periods["7d"].wash_trading_score >= 75 ? 'text-red-600' :
+                                report.time_periods["7d"].wash_trading_score >= 50 ? 'text-orange-600' :
+                                report.time_periods["7d"].wash_trading_score >= 25 ? 'text-yellow-600' :
+                                'text-green-600'
+                              }`}>
+                                {report.time_periods["7d"].wash_trading_score}/100
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Suspicious Pairs:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["7d"].suspicious_wallet_pairs}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 30d Period */}
+                      {report.time_periods["30d"] && (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <div className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 mb-3">Last 30 Days</div>
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Transactions:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["30d"].total_transactions}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Unique Traders:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["30d"].unique_traders}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Risk Score:</span>
+                              <span className={`text-sm font-bold ${
+                                report.time_periods["30d"].wash_trading_score >= 75 ? 'text-red-600' :
+                                report.time_periods["30d"].wash_trading_score >= 50 ? 'text-orange-600' :
+                                report.time_periods["30d"].wash_trading_score >= 25 ? 'text-yellow-600' :
+                                'text-green-600'
+                              }`}>
+                                {report.time_periods["30d"].wash_trading_score}/100
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Suspicious Pairs:</span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">{report.time_periods["30d"].suspicious_wallet_pairs}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Transaction Type Breakdown */}
                 {report.transaction_breakdown && (
