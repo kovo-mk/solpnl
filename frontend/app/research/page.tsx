@@ -654,9 +654,41 @@ export default function ResearchPage() {
               </div>
             )}
 
-            {/* Token Metadata */}
-            {(report.token_name || report.token_symbol || report.token_logo_url || report.pair_created_at) && (
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl shadow-md p-6 border border-blue-200 dark:border-blue-700">
+            {/* Tab Navigation */}
+            <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 mb-6 -mx-6 px-6">
+              <div className="flex overflow-x-auto scrollbar-hide scroll-smooth" style={{ scrollSnapType: 'x mandatory' }}>
+                {[
+                  { id: 'overview', label: 'Overview', icon: '📊' },
+                  { id: 'network', label: 'Network', icon: '🕸️' },
+                  { id: 'liquidity', label: 'Liquidity', icon: '💧' },
+                  { id: 'whales', label: 'Whales', icon: '🐋' }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as 'overview' | 'network' | 'liquidity' | 'whales')}
+                    className={`
+                      flex-shrink-0 px-6 py-4 text-sm font-semibold whitespace-nowrap transition-all duration-200
+                      border-b-2 scroll-snap-align-start
+                      ${activeTab === tab.id
+                        ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
+                      }
+                    `}
+                    style={{ scrollSnapAlign: 'start' }}
+                  >
+                    <span className="mr-2">{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Overview Tab */}
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                {/* Token Metadata */}
+                {(report.token_name || report.token_symbol || report.token_logo_url || report.pair_created_at) && (
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl shadow-md p-6 border border-blue-200 dark:border-blue-700">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-3">
                   {report.token_logo_url && (
                     <img
@@ -1249,6 +1281,62 @@ export default function ResearchPage() {
               </div>
             )}
 
+                {/* Social/Technical Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Social */}
+                  {(report.twitter_handle || report.telegram_members) && (
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Social Media</h3>
+                      <div className="space-y-3">
+                        {report.twitter_handle && (
+                          <div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">Twitter</div>
+                            <div className="text-gray-900 dark:text-white font-medium">
+                              {report.twitter_handle} ({report.twitter_followers?.toLocaleString() || 0} followers)
+                            </div>
+                          </div>
+                        )}
+                        {report.telegram_members && (
+                          <div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">Telegram</div>
+                            <div className="text-gray-900 dark:text-white font-medium">
+                              {report.telegram_members.toLocaleString()} members
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Technical */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Technical Info</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Pump.fun Token</div>
+                        <div className="text-gray-900 dark:text-white font-medium">{report.is_pump_fun ? 'Yes' : 'No'}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Freeze Authority</div>
+                        <div className="text-gray-900 dark:text-white font-medium">
+                          {report.has_freeze_authority === null ? 'Unknown' : report.has_freeze_authority ? 'Enabled ⚠️' : 'Disabled ✓'}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Mint Authority</div>
+                        <div className="text-gray-900 dark:text-white font-medium">
+                          {report.has_mint_authority === null ? 'Unknown' : report.has_mint_authority ? 'Enabled ⚠️' : 'Disabled ✓'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Network Tab */}
+            {activeTab === 'network' && (
+              <div className="space-y-6">
             {/* Related Manipulated Tokens */}
             {relatedTokens.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
@@ -1382,59 +1470,174 @@ export default function ResearchPage() {
                 </div>
               </div>
             )}
-
-            {/* Social/Technical Info */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Social */}
-              {(report.twitter_handle || report.telegram_members) && (
-                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Social Media</h3>
-                  <div className="space-y-3">
-                    {report.twitter_handle && (
-                      <div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Twitter</div>
-                        <div className="text-gray-900 dark:text-white font-medium">
-                          {report.twitter_handle} ({report.twitter_followers?.toLocaleString() || 0} followers)
-                        </div>
-                      </div>
-                    )}
-                    {report.telegram_members && (
-                      <div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">Telegram</div>
-                        <div className="text-gray-900 dark:text-white font-medium">
-                          {report.telegram_members.toLocaleString()} members
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Technical */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Technical Info</h3>
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Pump.fun Token</div>
-                    <div className="text-gray-900 dark:text-white font-medium">{report.is_pump_fun ? 'Yes' : 'No'}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Freeze Authority</div>
-                    <div className="text-gray-900 dark:text-white font-medium">
-                      {report.has_freeze_authority === null ? 'Unknown' : report.has_freeze_authority ? 'Enabled ⚠️' : 'Disabled ✓'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Mint Authority</div>
-                    <div className="text-gray-900 dark:text-white font-medium">
-                      {report.has_mint_authority === null ? 'Unknown' : report.has_mint_authority ? 'Enabled ⚠️' : 'Disabled ✓'}
-                    </div>
-                  </div>
-                </div>
               </div>
-            </div>
-            </div>
+            )}
+
+            {/* Liquidity Tab */}
+            {activeTab === 'liquidity' && (
+              <div className="space-y-6">
+                {liquidityPools.length > 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">💧 Liquidity Pools</h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                      DEX pools where this token can be traded. Higher liquidity generally indicates more stable trading.
+                    </p>
+                    <div className="space-y-4">
+                      {liquidityPools.map((pool, idx) => (
+                        <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                                {pool.dex}
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                {pool.created_at && `Created: ${new Date(pool.created_at).toLocaleDateString()}`}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                                ${pool.liquidity_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">Liquidity</div>
+                            </div>
+                          </div>
+                          {pool.volume_24h && (
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                              24h Volume: ${pool.volume_24h.toLocaleString()}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-2 mt-3">
+                            <a
+                              href={`https://solscan.io/account/${pool.pool_address}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors flex items-center gap-2"
+                            >
+                              View Pool on Solscan →
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">💧 Liquidity Pools</h2>
+                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                      <div className="text-center">
+                        <div className="text-4xl mb-3">🔍</div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Liquidity Pools Found</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          No DEX pools were detected for this token. This could indicate limited trading availability.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Whales Tab */}
+            {activeTab === 'whales' && (
+              <div className="space-y-6">
+                {whaleMovements.length > 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🐋 Whale Movements</h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                      Large transfers over $10,000 USD. Whale activity can signal major price movements.
+                    </p>
+                    <div className="space-y-4">
+                      {whaleMovements.map((whale, idx) => {
+                        const date = new Date(whale.timestamp * 1000);
+                        const now = Date.now();
+                        const diffHours = Math.floor((now - date.getTime()) / (1000 * 60 * 60));
+                        const timeAgo = diffHours < 24
+                          ? `${diffHours} hours ago`
+                          : `${Math.floor(diffHours / 24)} days ago`;
+
+                        return (
+                          <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                                ${whale.amount_usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm text-gray-600 dark:text-gray-400">{timeAgo}</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-500">
+                                  {date.toLocaleDateString()} {date.toLocaleTimeString()}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 mb-3">
+                              <div className="flex-1">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">From</div>
+                                <div className="font-mono text-sm text-gray-900 dark:text-white truncate">
+                                  {whale.from}
+                                </div>
+                              </div>
+                              <div className="text-2xl text-gray-400">→</div>
+                              <div className="flex-1">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">To</div>
+                                <div className="font-mono text-sm text-gray-900 dark:text-white truncate">
+                                  {whale.to}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                              Amount: {whale.amount.toLocaleString()} tokens
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <a
+                                href={`https://solscan.io/account/${whale.from}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white text-xs rounded-md transition-colors"
+                              >
+                                From Wallet →
+                              </a>
+                              <a
+                                href={`https://solscan.io/account/${whale.to}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white text-xs rounded-md transition-colors"
+                              >
+                                To Wallet →
+                              </a>
+                              <a
+                                href={`https://solscan.io/tx/${whale.tx_signature}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md transition-colors"
+                              >
+                                View Transaction →
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🐋 Whale Movements</h2>
+                    <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                      <div className="text-center">
+                        <div className="text-4xl mb-3">🔍</div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Whale Activity Detected</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          No transfers over $10,000 were found recently. This could indicate low whale interest.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {/* End of Printable Report Content */}
+            </div>
           </div>
         )}
 
