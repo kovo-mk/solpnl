@@ -292,17 +292,17 @@ class WashTradingAnalyzer:
 
         return summary
 
-    async def fetch_rpc_transactions(
+    async def fetch_transactions_from_top_holders(
         self,
         token_address: str,
         limit: int = 1000,
         days_back: int = 30
     ) -> List[Dict]:
         """
-        Fetch token transactions using Helius RPC (Solana JSON-RPC methods).
+        Fetch token transactions by querying the largest token holders.
 
-        Uses getSignaturesForAddress to get all transaction signatures
-        for the token mint address, then fetches details for each.
+        Strategy: Get top token holders, then query their transaction history.
+        This captures most trading activity since large holders include DEX pools.
 
         Args:
             token_address: Token mint address
@@ -316,7 +316,101 @@ class WashTradingAnalyzer:
             logger.warning("No Helius API key provided")
             return []
 
-        logger.info(f"Fetching RPC transactions for {token_address[:8]}... (limit: {limit})")
+        logger.info(f"Fetching transactions from top holders for {token_address[:8]}... (limit: {limit})")
+
+        try:
+            time_cutoff = int((datetime.now() - timedelta(days=days_back)).timestamp())
+            rpc_url = f"https://mainnet.helius-rpc.com/?api-key={self.helius_api_key}"
+            api_url = f"https://api-mainnet.helius-rpc.com/v0"
+
+            all_transactions = []
+            seen_signatures = set()
+
+            async with aiohttp.ClientSession() as session:
+                # Step 1: Get largest token accounts (top 20 holders)
+                logger.info("Getting top token holders...")
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "getTokenLargestAccounts",
+                    "params": [token_address]
+                }
+
+                async with session.post(rpc_url, json=payload) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to get token holders: {response.status}")
+                        return []
+
+                    data = await response.json()
+                    accounts = data.get("result", {}).get("value", [])
+
+                    if not accounts:
+                        logger.warning("No token accounts found")
+                        return []
+
+                    logger.info(f"Found {len(accounts)} top token holders")
+
+                # Step 2: Query transactions for each top holder
+                for idx, account_info in enumerate(accounts[:10]):  # Query top 10 holders
+                    account_address = account_info.get("address")
+                    if not account_address:
+                        continue
+
+                    logger.info(f"Fetching transactions for holder {idx+1}/10: {account_address[:8]}...")
+
+                    # Use Helius Enhanced Transactions API (works with wallet addresses!)
+                    holder_url = f"{api_url}/addresses/{account_address}/transactions"
+                    params = {
+                        "api-key": self.helius_api_key,
+                        "limit": min(100, limit // 10),  # Distribute limit across holders
+                        "gte-time": time_cutoff,
+                    }
+
+                    async with session.get(holder_url, params=params) as tx_response:
+                        if tx_response.status == 200:
+                            transactions = await tx_response.json()
+
+                            # Filter for transactions involving our token
+                            for tx in transactions:
+                                sig = tx.get("signature")
+                                if sig in seen_signatures:
+                                    continue
+
+                                # Check if transaction involves our token
+                                token_transfers = tx.get("tokenTransfers", [])
+                                has_our_token = any(
+                                    t.get("mint") == token_address
+                                    for t in token_transfers
+                                )
+
+                                if has_our_token:
+                                    all_transactions.append(tx)
+                                    seen_signatures.add(sig)
+
+                            logger.info(f"  Found {len(all_transactions)} total transactions so far")
+
+                            if len(all_transactions) >= limit:
+                                break
+
+                    # Small delay to respect rate limits
+                    await asyncio.sleep(0.2)
+
+            logger.info(f"Fetched {len(all_transactions)} transactions from top holders")
+            return all_transactions[:limit]
+
+        except Exception as e:
+            logger.error(f"Error fetching transactions from top holders: {e}")
+            return []
+
+    async def fetch_rpc_transactions_old(
+        self,
+        token_address: str,
+        limit: int = 1000,
+        days_back: int = 30
+    ) -> List[Dict]:
+        """OLD METHOD - kept as fallback. Queries mint address directly (doesn't work well)."""
+        if not self.helius_api_key:
+            return []
 
         try:
             time_cutoff = int((datetime.now() - timedelta(days=days_back)).timestamp())
@@ -494,8 +588,8 @@ class WashTradingAnalyzer:
         logger.info(f"Fetching up to {limit} transactions for {token_address[:8]} (last {days_back} days)...")
 
         try:
-            # Try RPC method first (uses standard Solana JSON-RPC with Helius)
-            transactions = await self.fetch_rpc_transactions(
+            # Try querying top holders first (most efficient approach)
+            transactions = await self.fetch_transactions_from_top_holders(
                 token_address=token_address,
                 limit=limit,
                 days_back=days_back
