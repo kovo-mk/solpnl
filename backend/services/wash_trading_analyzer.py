@@ -549,12 +549,12 @@ class WashTradingAnalyzer:
                                 if len(batch) == 100:  # Only paginate if we got a full batch
                                     before_signature = batch[-1].get("signature")
                                 else:
-                                break  # Less than 100 = no more data
-                        else:
-                            logger.error(f"Helius API error: {response.status}")
-                            if i == 0:  # Only fail if first request fails
-                                return self._empty_transaction_analysis()
-                            break  # Use what we have
+                                    break  # Less than 100 = no more data
+                            else:
+                                logger.error(f"Helius API error: {response.status}")
+                                if i == 0:  # Only fail if first request fails
+                                    return self._empty_transaction_analysis()
+                                break  # Use what we have
 
             if not transactions:
                 logger.info("No transactions found")
