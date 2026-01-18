@@ -60,11 +60,14 @@ class SolscanProAPI:
                         "address": token_address,
                         "page": page,
                         "page_size": page_size,
-                        "block_time": f"{start_time},{end_time}",
+                        "block_time[]": start_time,  # Array format: block_time[]=start&block_time[]=end
                         "sort_by": "block_time",
                         "sort_order": "desc",
                         "exclude_amount_zero": "true"  # Skip zero-amount transfers
                     }
+
+                    # Add end time as second array element
+                    params["block_time[]"] = [start_time, end_time]
 
                     logger.info(f"Fetching page {page} from {url}")
                     logger.info(f"Params: {params}")
