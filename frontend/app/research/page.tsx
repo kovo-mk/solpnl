@@ -407,8 +407,8 @@ export default function ResearchPage() {
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h1 className="text-4xl font-bold mb-3 text-gray-900 dark:text-white">Token Research v2.1</h1>
-            <p className="text-gray-600 dark:text-gray-400 text-lg">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 text-gray-900 dark:text-white">Token Research v2.1</h1>
+            <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base md:text-lg">
               AI-powered analysis to detect fraud patterns, holder concentration, and risk factors
             </p>
           </div>
@@ -665,10 +665,11 @@ export default function ResearchPage() {
                 ].map((tab) => (
                   <button
                     key={tab.id}
+                    type="button"
                     onClick={() => setActiveTab(tab.id as 'overview' | 'network' | 'liquidity' | 'whales')}
                     className={`
-                      flex-shrink-0 px-6 py-4 text-sm font-semibold whitespace-nowrap transition-all duration-200
-                      border-b-2 scroll-snap-align-start
+                      flex-shrink-0 px-4 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200
+                      border-b-2 scroll-snap-align-start min-h-[44px] flex items-center
                       ${activeTab === tab.id
                         ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
                         : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
@@ -676,7 +677,7 @@ export default function ResearchPage() {
                     `}
                     style={{ scrollSnapAlign: 'start' }}
                   >
-                    <span className="mr-2">{tab.icon}</span>
+                    <span className="mr-1 sm:mr-2 text-base sm:text-lg">{tab.icon}</span>
                     {tab.label}
                   </button>
                 ))}
