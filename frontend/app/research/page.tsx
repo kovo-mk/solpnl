@@ -407,7 +407,7 @@ export default function ResearchPage() {
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 text-gray-900 dark:text-white">Token Research v2.1</h1>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 text-gray-900 dark:text-white">Token Research v2.2</h1>
             <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base md:text-lg">
               AI-powered analysis to detect fraud patterns, holder concentration, and risk factors
             </p>
