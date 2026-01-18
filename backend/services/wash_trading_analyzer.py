@@ -634,15 +634,11 @@ class WashTradingAnalyzer:
                 if transactions:
                     logger.info(f"Solscan Pro returned {len(transactions)} transactions")
 
-                    # Analyze with time period breakdowns
+                    # Analyze once (overall)
                     overall_analysis = self._analyze_transaction_patterns(token_address, transactions)
 
-                    # Add time period breakdowns (24h, 7d, 30d)
-                    overall_analysis["time_periods"] = {
-                        "24h": self._analyze_transaction_patterns(token_address, transactions, time_period_days=1),
-                        "7d": self._analyze_transaction_patterns(token_address, transactions, time_period_days=7),
-                        "30d": self._analyze_transaction_patterns(token_address, transactions, time_period_days=30)
-                    }
+                    # Add lightweight time period stats (just counts, not full re-analysis)
+                    overall_analysis["time_periods"] = self._get_time_period_stats(transactions)
 
                     return overall_analysis
                 else:
@@ -716,21 +712,72 @@ class WashTradingAnalyzer:
 
             logger.info(f"Analyzing {len(transactions)} transactions from last {days_back} days...")
 
-            # Analyze trading patterns with time period breakdowns
+            # Analyze once (overall)
             overall_analysis = self._analyze_transaction_patterns(token_address, transactions)
 
-            # Add time period breakdowns (24h, 7d, 30d)
-            overall_analysis["time_periods"] = {
-                "24h": self._analyze_transaction_patterns(token_address, transactions, time_period_days=1),
-                "7d": self._analyze_transaction_patterns(token_address, transactions, time_period_days=7),
-                "30d": self._analyze_transaction_patterns(token_address, transactions, time_period_days=30)
-            }
+            # Add lightweight time period stats
+            overall_analysis["time_periods"] = self._get_time_period_stats(transactions)
 
             return overall_analysis
 
         except Exception as e:
             logger.error(f"Error fetching Helius transactions: {e}")
             return self._empty_transaction_analysis()
+
+    def _get_time_period_stats(self, transactions: List[Dict]) -> Dict:
+        """
+        Get lightweight transaction stats for different time periods without full re-analysis.
+        Much faster than running full analysis 3 times.
+        """
+        current_time = int(datetime.now().timestamp())
+
+        periods = {
+            "24h": current_time - (1 * 24 * 60 * 60),
+            "7d": current_time - (7 * 24 * 60 * 60),
+            "30d": current_time - (30 * 24 * 60 * 60)
+        }
+
+        stats = {}
+
+        for period_name, cutoff_time in periods.items():
+            # Filter transactions for this period
+            period_txs = [tx for tx in transactions if tx.get("timestamp", 0) >= cutoff_time]
+
+            # Extract unique traders (quick set operation)
+            traders = set()
+            total_txs = 0
+
+            for tx in period_txs:
+                total_txs += 1
+                for transfer in tx.get("tokenTransfers", []):
+                    from_addr = transfer.get("fromUserAccount")
+                    to_addr = transfer.get("toUserAccount")
+                    if from_addr:
+                        traders.add(from_addr)
+                    if to_addr:
+                        traders.add(to_addr)
+
+            # Calculate simple risk score based on trader/transaction ratio
+            trader_ratio = len(traders) / total_txs if total_txs > 0 else 0
+
+            if trader_ratio < 0.2:
+                risk_score = 100
+            elif trader_ratio < 0.4:
+                risk_score = 75
+            elif trader_ratio < 0.6:
+                risk_score = 50
+            else:
+                risk_score = 25
+
+            stats[period_name] = {
+                "total_transactions": total_txs,
+                "unique_traders": len(traders),
+                "wash_trading_score": risk_score,
+                "suspicious_wallet_pairs": 0,  # Would need full analysis
+                "bot_wallets_detected": 0  # Would need full analysis
+            }
+
+        return stats
 
     def _analyze_transaction_patterns(
         self,
