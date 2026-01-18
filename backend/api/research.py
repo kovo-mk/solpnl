@@ -427,7 +427,10 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
 
         # 5.5. Run wash trading analysis
         logger.info(f"Running wash trading analysis for {token_address}")
-        wash_analyzer = WashTradingAnalyzer(helius_api_key=settings.HELIUS_API_KEY)
+        wash_analyzer = WashTradingAnalyzer(
+            helius_api_key=settings.HELIUS_API_KEY,
+            solscan_api_key=settings.SOLSCAN_API_KEY
+        )
 
         # Run Helius transaction analysis for real wash trading detection
         # Fetch up to 1000 transactions from last 30 days for comprehensive analysis

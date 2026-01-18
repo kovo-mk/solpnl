@@ -6,13 +6,24 @@ from typing import Dict, List, Optional, Tuple
 from loguru import logger
 import aiohttp
 
+try:
+    from .solscan_api import SolscanProAPI
+except ImportError:
+    SolscanProAPI = None
+
 
 class WashTradingAnalyzer:
     """Analyzes tokens for wash trading and market manipulation patterns."""
 
-    def __init__(self, helius_api_key: Optional[str] = None):
-        """Initialize with optional Helius API key for transaction analysis."""
+    def __init__(self, helius_api_key: Optional[str] = None, solscan_api_key: Optional[str] = None):
+        """Initialize with optional API keys for transaction analysis."""
         self.helius_api_key = helius_api_key
+        self.solscan_api_key = solscan_api_key
+        self.solscan_client = None
+
+        if solscan_api_key and SolscanProAPI:
+            self.solscan_client = SolscanProAPI(solscan_api_key)
+            logger.info("Solscan Pro API client initialized")
 
     def analyze_trading_patterns(
         self,
@@ -604,7 +615,23 @@ class WashTradingAnalyzer:
         logger.info(f"Fetching up to {limit} transactions for {token_address[:8]} (last {days_back} days)...")
 
         try:
-            # Try querying top holders first (most efficient approach)
+            # Try Solscan Pro API first if available (best option)
+            if self.solscan_client:
+                logger.info("Using Solscan Pro API for transaction data...")
+                transactions = await self.solscan_client.fetch_token_transfers(
+                    token_address=token_address,
+                    limit=limit,
+                    days_back=days_back
+                )
+
+                if transactions:
+                    logger.info(f"Solscan Pro returned {len(transactions)} transactions")
+                    # Analyze and return
+                    return self._analyze_transaction_patterns(token_address, transactions)
+                else:
+                    logger.warning("Solscan Pro returned no transactions, trying fallback...")
+
+            # Fallback: Try querying top holders
             transactions = await self.fetch_transactions_from_top_holders(
                 token_address=token_address,
                 limit=limit,
