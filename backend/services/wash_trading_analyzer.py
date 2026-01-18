@@ -292,17 +292,17 @@ class WashTradingAnalyzer:
 
         return summary
 
-    async def fetch_solscan_transactions(
+    async def fetch_rpc_transactions(
         self,
         token_address: str,
         limit: int = 1000,
         days_back: int = 30
     ) -> List[Dict]:
         """
-        Fetch token transfer transactions from Solscan API (free tier).
+        Fetch token transactions using Helius RPC (Solana JSON-RPC methods).
 
-        Solscan provides comprehensive token transfer data without requiring
-        complex RPC queries. Free tier: 5,000 requests/day.
+        Uses getSignaturesForAddress to get all transaction signatures
+        for the token mint address, then fetches details for each.
 
         Args:
             token_address: Token mint address
@@ -312,82 +312,151 @@ class WashTradingAnalyzer:
         Returns:
             List of transaction dictionaries in Helius-compatible format
         """
-        logger.info(f"Fetching Solscan transactions for {token_address[:8]}... (limit: {limit})")
+        if not self.helius_api_key:
+            logger.warning("No Helius API key provided")
+            return []
+
+        logger.info(f"Fetching RPC transactions for {token_address[:8]}... (limit: {limit})")
 
         try:
-            transactions = []
-            offset = 0
-            page_size = 50  # Solscan returns max 50 per request
             time_cutoff = int((datetime.now() - timedelta(days=days_back)).timestamp())
+            url = f"https://mainnet.helius-rpc.com/?api-key={self.helius_api_key}"
+
+            transactions = []
+            before_signature = None
 
             async with aiohttp.ClientSession() as session:
+                # Fetch signatures in batches of 100
                 while len(transactions) < limit:
-                    # Solscan Public API endpoint (free tier)
-                    url = f"https://public-api.solscan.io/account/transactions"
-                    params = {
-                        "account": token_address,
-                        "limit": page_size,
-                        "offset": offset
+                    # Get signatures for the token address
+                    params = [token_address, {"limit": min(100, limit - len(transactions))}]
+                    if before_signature:
+                        params[1]["before"] = before_signature
+
+                    payload = {
+                        "jsonrpc": "2.0",
+                        "id": 1,
+                        "method": "getSignaturesForAddress",
+                        "params": params
                     }
 
-                    async with session.get(url, params=params) as response:
+                    async with session.post(url, json=payload) as response:
                         if response.status != 200:
-                            logger.warning(f"Solscan API returned {response.status}")
+                            logger.error(f"RPC error: {response.status}")
                             break
 
                         data = await response.json()
+                        signatures = data.get("result", [])
 
-                        if not data or not isinstance(data, list):
-                            logger.info(f"No more transactions from Solscan")
+                        if not signatures:
+                            logger.info("No more signatures")
                             break
 
-                        # Convert Solscan format to our internal format
-                        for tx in data:
-                            block_time = tx.get("blockTime", 0)
-
-                            # Stop if we've gone past our time cutoff
+                        # Filter signatures by time first
+                        valid_signatures = []
+                        for sig_info in signatures:
+                            block_time = sig_info.get("blockTime", 0)
                             if block_time < time_cutoff:
                                 logger.info(f"Reached time cutoff at {len(transactions)} transactions")
                                 return transactions
+                            valid_signatures.append(sig_info)
 
-                            # Parse token transfers from Solscan format
-                            token_transfers = []
+                        # Batch fetch transaction details (10 at a time to avoid overwhelming the RPC)
+                        batch_size = 10
+                        for i in range(0, len(valid_signatures), batch_size):
+                            batch = valid_signatures[i:i + batch_size]
 
-                            # Solscan provides tokenBalanceChanges
-                            for change in tx.get("tokenBalanceChanges", []):
-                                if change.get("token", {}).get("address") == token_address:
-                                    token_transfers.append({
-                                        "mint": token_address,
-                                        "fromUserAccount": change.get("account"),
-                                        "toUserAccount": change.get("account"),  # Solscan shows net change
-                                        "tokenAmount": abs(change.get("amount", 0)),
-                                    })
+                            # Create batch RPC request
+                            batch_payloads = [
+                                {
+                                    "jsonrpc": "2.0",
+                                    "id": idx,
+                                    "method": "getParsedTransaction",
+                                    "params": [
+                                        sig_info["signature"],
+                                        {
+                                            "encoding": "jsonParsed",
+                                            "maxSupportedTransactionVersion": 0
+                                        }
+                                    ]
+                                }
+                                for idx, sig_info in enumerate(batch)
+                            ]
 
-                            # Convert to Helius-compatible format
-                            transactions.append({
-                                "signature": tx.get("txHash"),
-                                "timestamp": block_time,
-                                "type": "TRANSFER",  # Solscan data is all transfers
-                                "source": "solscan",
-                                "tokenTransfers": token_transfers,
-                            })
+                            async with session.post(url, json=batch_payloads) as tx_response:
+                                if tx_response.status == 200:
+                                    batch_results = await tx_response.json()
 
-                        # Check if we got a full page (more data available)
-                        if len(data) < page_size:
-                            logger.info(f"Retrieved all available transactions: {len(transactions)}")
+                                    # Handle both single response and batch response
+                                    if not isinstance(batch_results, list):
+                                        batch_results = [batch_results]
+
+                                    for result_data, sig_info in zip(batch_results, batch):
+                                        tx_result = result_data.get("result")
+
+                                        if tx_result:
+                                            # Parse token transfers from transaction
+                                            token_transfers = self._parse_token_transfers(
+                                                tx_result, token_address
+                                            )
+
+                                            if token_transfers:  # Only include if has token transfers
+                                                transactions.append({
+                                                    "signature": sig_info["signature"],
+                                                    "timestamp": sig_info.get("blockTime", 0),
+                                                    "type": "TRANSFER",
+                                                    "source": "rpc",
+                                                    "tokenTransfers": token_transfers,
+                                                })
+
+                            # Rate limiting between batches
+                            await asyncio.sleep(0.1)
+
+                            if len(transactions) >= limit:
+                                break
+
+                        if len(transactions) >= limit:
                             break
 
-                        offset += page_size
+                        # Set pagination cursor
+                        if len(signatures) == 100:
+                            before_signature = signatures[-1]["signature"]
+                        else:
+                            break  # No more data
 
-                        # Small delay to respect rate limits
-                        await asyncio.sleep(0.1)
-
-            logger.info(f"Fetched {len(transactions)} transactions from Solscan")
+            logger.info(f"Fetched {len(transactions)} transactions via RPC")
             return transactions
 
         except Exception as e:
-            logger.error(f"Error fetching Solscan transactions: {e}")
+            logger.error(f"Error fetching RPC transactions: {e}")
             return []
+
+    def _parse_token_transfers(self, tx_result: Dict, token_address: str) -> List[Dict]:
+        """Parse token transfers from a parsed transaction."""
+        token_transfers = []
+
+        try:
+            # Get instructions from transaction
+            instructions = tx_result.get("transaction", {}).get("message", {}).get("instructions", [])
+
+            for instruction in instructions:
+                if instruction.get("program") == "spl-token" and instruction.get("parsed"):
+                    parsed = instruction["parsed"]
+                    info = parsed.get("info", {})
+
+                    # Check if it's a transfer of our token
+                    if parsed.get("type") == "transfer" and info.get("mint") == token_address:
+                        token_transfers.append({
+                            "mint": token_address,
+                            "fromUserAccount": info.get("source"),
+                            "toUserAccount": info.get("destination"),
+                            "tokenAmount": int(info.get("amount", 0)),
+                        })
+
+        except Exception as e:
+            logger.error(f"Error parsing token transfers: {e}")
+
+        return token_transfers
 
     async def analyze_helius_transactions(
         self,
@@ -425,16 +494,16 @@ class WashTradingAnalyzer:
         logger.info(f"Fetching up to {limit} transactions for {token_address[:8]} (last {days_back} days)...")
 
         try:
-            # Try Solscan first (free tier, comprehensive token transfer data)
-            transactions = await self.fetch_solscan_transactions(
+            # Try RPC method first (uses standard Solana JSON-RPC with Helius)
+            transactions = await self.fetch_rpc_transactions(
                 token_address=token_address,
                 limit=limit,
                 days_back=days_back
             )
 
-            # If Solscan fails or returns no data, fallback to Helius
+            # If RPC fails or returns no data, fallback to Helius Enhanced Transactions API
             if not transactions:
-                logger.warning("Solscan returned no transactions, trying Helius fallback...")
+                logger.warning("RPC returned no transactions, trying Helius Enhanced API fallback...")
 
                 if not self.helius_api_key:
                     logger.warning("No Helius API key provided, cannot fetch transactions")
