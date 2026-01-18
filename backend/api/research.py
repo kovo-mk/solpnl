@@ -511,7 +511,11 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             suspicious_patterns=json.dumps(analysis_result["suspicious_patterns"]),
             red_flags=json.dumps(analysis_result["red_flags"]),
             total_holders=analysis_result["total_holders"],
-            total_holder_count=solscan_data.get("holder_count") if solscan_data else None,
+            total_holder_count=(
+                dex_data.get("holder_count") if dex_data
+                else solscan_data.get("holder_count") if solscan_data
+                else None
+            ),
             top_10_holder_percentage=analysis_result["top_10_holder_percentage"],
             whale_count=analysis_result["whale_count"],
             is_pump_fun=contract_info.get("is_pump_fun", False),
