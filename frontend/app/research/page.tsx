@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Search, Twitter, Wallet, FileText, AlertCircle, Sun, Moon } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Search, Twitter, Wallet, FileText, AlertCircle, Sun, Moon, Download } from 'lucide-react';
+import { useReactToPrint } from 'react-to-print';
 
 interface RedFlag {
   severity: string;
@@ -66,6 +67,7 @@ export default function ResearchPage() {
   const [report, setReport] = useState<TokenReport | null>(null);
   const [error, setError] = useState('');
   const [isDark, setIsDark] = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -89,6 +91,27 @@ export default function ResearchPage() {
       localStorage.setItem('theme', 'light');
     }
   };
+
+  // PDF Export handler
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+    documentTitle: `Token-Analysis-${report?.token_symbol || report?.token_address?.slice(0, 8) || 'Report'}`,
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 20mm;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .no-print {
+          display: none !important;
+        }
+      }
+    `,
+  });
 
   const analyzeToken = async () => {
     // At least one field must be filled
@@ -224,7 +247,7 @@ export default function ResearchPage() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="ml-4 p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm"
+            className="ml-4 p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shadow-sm no-print"
             aria-label="Toggle theme"
           >
             {isDark ? (
@@ -236,7 +259,7 @@ export default function ResearchPage() {
         </div>
 
         {/* Search Form */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8 border border-gray-200 dark:border-gray-700 no-print">
           <div className="space-y-4">
             {/* Token Address Input */}
             <div>
@@ -351,7 +374,7 @@ export default function ResearchPage() {
 
         {/* Loading State */}
         {loading && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center border border-gray-200 dark:border-gray-700 no-print">
             <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-gray-200 dark:border-gray-700 border-t-blue-600 mb-4"></div>
             <p className="text-gray-900 dark:text-white font-medium text-lg">Analyzing token...</p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">This may take 10-30 seconds</p>
@@ -361,6 +384,20 @@ export default function ResearchPage() {
         {/* Report Display */}
         {report && !loading && (
           <div className="space-y-6">
+            {/* Export PDF Button */}
+            <div className="flex justify-end no-print">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium shadow-md hover:shadow-lg transition-all"
+              >
+                <Download className="w-5 h-5" />
+                Export PDF
+              </button>
+            </div>
+
+            {/* Printable Report Content */}
+            <div ref={printRef}>
             {/* Pump.fun Warning */}
             {report.is_pump_fun && (
               <div className="rounded-xl shadow-lg p-6 border-2 bg-purple-50 dark:bg-purple-900/20 border-purple-500">
@@ -896,6 +933,8 @@ export default function ResearchPage() {
                 </div>
               </div>
             </div>
+            </div>
+            {/* End of Printable Report Content */}
           </div>
         )}
       </div>
