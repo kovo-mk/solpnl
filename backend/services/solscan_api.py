@@ -39,7 +39,7 @@ class SolscanProAPI:
             }
 
             url = f"{self.base_url}/token/markets"
-            params = {"token": token_address}
+            params = {"token": [token_address]}
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers, params=params) as response:
