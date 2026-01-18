@@ -19,6 +19,7 @@ interface TokenReport {
   // Token metadata
   token_name?: string | null;
   token_symbol?: string | null;
+  token_logo_url?: string | null;
   pair_created_at?: string | null;
   // Holder stats
   total_holders: number;  // Number analyzed (usually 20)
@@ -496,9 +497,19 @@ export default function ResearchPage() {
             )}
 
             {/* Token Metadata */}
-            {(report.token_name || report.token_symbol || report.pair_created_at) && (
+            {(report.token_name || report.token_symbol || report.token_logo_url || report.pair_created_at) && (
               <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl shadow-md p-6 border border-blue-200 dark:border-blue-700">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🪙 Token Information</h2>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-3">
+                  {report.token_logo_url && (
+                    <img
+                      src={report.token_logo_url}
+                      alt={report.token_name || 'Token logo'}
+                      className="w-10 h-10 rounded-full border-2 border-white dark:border-gray-700 shadow-md"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  )}
+                  <span>🪙 Token Information</span>
+                </h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {report.token_name && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">

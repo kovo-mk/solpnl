@@ -45,6 +45,7 @@ class TokenReportResponse(BaseModel):
     # Token metadata
     token_name: Optional[str] = None
     token_symbol: Optional[str] = None
+    token_logo_url: Optional[str] = None
     pair_created_at: Optional[datetime] = None
 
     # Holder stats
@@ -226,6 +227,7 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
         # Token metadata
         token_name=report.token_name,
         token_symbol=report.token_symbol,
+        token_logo_url=report.token_logo_url,
         pair_created_at=report.pair_created_at,
         # Holder stats
         total_holders=report.total_holders or 0,
@@ -285,6 +287,7 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
         # Token metadata
         token_name=report.token_name,
         token_symbol=report.token_symbol,
+        token_logo_url=report.token_logo_url,
         pair_created_at=report.pair_created_at,
         # Holder stats
         total_holders=report.total_holders or 0,
@@ -524,6 +527,7 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             # Token metadata
             token_name=contract_info.get("name"),
             token_symbol=contract_info.get("symbol"),
+            token_logo_url=contract_info.get("logo_url"),
             pair_created_at=pair_created_at,
             # Social info
             twitter_handle=twitter_handle,

@@ -296,6 +296,7 @@ class TokenAnalysisReport(Base):
     # Token metadata
     token_name = Column(String(500), nullable=True)
     token_symbol = Column(String(50), nullable=True)
+    token_logo_url = Column(Text, nullable=True)
     pair_created_at = Column(DateTime(timezone=True), nullable=True)  # When the trading pair was created
 
     # AI analysis summary
