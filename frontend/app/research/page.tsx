@@ -1,5 +1,5 @@
 'use client';
-
+// Token fraud detection and analysis page
 import { useState, useEffect, useRef } from 'react';
 import { Search, Twitter, Wallet, FileText, AlertCircle, Sun, Moon, Download } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
