@@ -299,6 +299,10 @@ class TokenAnalysisReport(Base):
     pattern_transactions = Column(Text, nullable=True)  # JSON: pattern_name -> [signatures]
     time_periods = Column(Text, nullable=True)  # JSON: 24h, 7d, 30d breakdown
 
+    # Liquidity and whale tracking (stored as JSON)
+    liquidity_pools = Column(Text, nullable=True)  # JSON: [{dex, pool_address, liquidity_usd, created_at}]
+    whale_movements = Column(Text, nullable=True)  # JSON: [{from, to, amount, amount_usd, timestamp, tx_signature}]
+
     # Token metadata
     token_name = Column(String(500), nullable=True)
     token_symbol = Column(String(50), nullable=True)
@@ -414,6 +418,36 @@ class SolscanTransferCache(Base):
     __table_args__ = (
         Index('ix_solscan_cache_token_cached', 'token_address', 'cached_at'),
         Index('ix_solscan_cache_expires', 'expires_at'),
+    )
+
+
+class NewTokenFeed(Base):
+    """Feed of newly created tokens from Solscan for monitoring."""
+    __tablename__ = "new_token_feed"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token_address = Column(String(255), nullable=False, unique=True, index=True)
+
+    # Token metadata
+    token_name = Column(String(500), nullable=True)
+    token_symbol = Column(String(50), nullable=True)
+    token_logo_url = Column(Text, nullable=True)
+
+    # Launch details
+    platform = Column(String(50), nullable=True)  # pumpfun, raydium, orca, etc.
+    created_at = Column(DateTime(timezone=True), nullable=False, index=True)
+
+    # Quick metrics
+    initial_liquidity_usd = Column(Float, nullable=True)
+    pool_address = Column(String(255), nullable=True)
+
+    # Tracking
+    discovered_at = Column(DateTime(timezone=True), server_default=func.now())
+    has_been_analyzed = Column(Boolean, default=False, index=True)
+
+    __table_args__ = (
+        Index('ix_new_token_created', 'created_at', 'has_been_analyzed'),
+        Index('ix_new_token_platform', 'platform', 'created_at'),
     )
 
 

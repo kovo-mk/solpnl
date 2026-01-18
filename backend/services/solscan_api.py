@@ -18,6 +18,192 @@ class SolscanProAPI:
         self.base_url = "https://pro-api.solscan.io/v2.0"
         self.db = db_session
 
+    async def fetch_token_markets(self, token_address: str) -> List[Dict]:
+        """
+        Fetch liquidity pool/market data for a token from Solscan Pro API.
+
+        Returns list of DEX pools with liquidity information:
+        [{
+            "dex": "Raydium",
+            "pool_address": "...",
+            "liquidity_usd": 123456.78,
+            "created_at": "2024-01-01T00:00:00Z"
+        }]
+        """
+        logger.info(f"Fetching token markets for {token_address[:8]}...")
+
+        try:
+            headers = {
+                "token": self.api_key,
+                "accept": "application/json"
+            }
+
+            url = f"{self.base_url}/token/markets"
+            params = {"address": token_address}
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, params=params) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Solscan markets API error: {response.status}")
+                        logger.error(f"Response: {error_text[:500]}")
+                        return []
+
+                    data = await response.json()
+
+                    if not data.get("success"):
+                        logger.error(f"Solscan markets API returned success=false: {data}")
+                        return []
+
+                    markets = data.get("data", [])
+
+                    # Format the response
+                    formatted_pools = []
+                    for market in markets:
+                        formatted_pools.append({
+                            "dex": market.get("source", "Unknown"),
+                            "pool_address": market.get("pool_id") or market.get("address"),
+                            "liquidity_usd": market.get("liquidity_usd") or market.get("liquidity"),
+                            "created_at": market.get("created_at") or market.get("pool_created_time"),
+                            "volume_24h": market.get("volume_24h"),
+                            "price_usd": market.get("price_usd")
+                        })
+
+                    logger.info(f"Found {len(formatted_pools)} liquidity pools for {token_address[:8]}")
+                    return formatted_pools
+
+        except Exception as e:
+            logger.error(f"Error fetching token markets: {e}")
+            return []
+
+    async def fetch_whale_movements(
+        self,
+        token_address: str,
+        min_amount_usd: float = 10000,
+        limit: int = 50
+    ) -> List[Dict]:
+        """
+        Fetch recent large token transfers (whale movements).
+
+        Args:
+            token_address: Token mint address
+            min_amount_usd: Minimum transfer value in USD to qualify as whale movement
+            limit: Max number of whale movements to return
+
+        Returns:
+            List of large transfers:
+            [{
+                "from": "wallet1...",
+                "to": "wallet2...",
+                "amount": 1000000,
+                "amount_usd": 15000.50,
+                "timestamp": 1234567890,
+                "tx_signature": "..."
+            }]
+        """
+        logger.info(f"Fetching whale movements for {token_address[:8]} (min ${min_amount_usd:,.0f})...")
+
+        try:
+            # Fetch recent transfers
+            transfers = await self.fetch_token_transfers(token_address, limit=500, days_back=7)
+
+            if not transfers:
+                return []
+
+            # Get current token price to filter by USD value
+            markets = await self.fetch_token_markets(token_address)
+            price_usd = 0
+            if markets and len(markets) > 0:
+                price_usd = markets[0].get("price_usd", 0)
+
+            whale_movements = []
+
+            for tx in transfers:
+                if not tx.get("tokenTransfers"):
+                    continue
+
+                for transfer in tx["tokenTransfers"]:
+                    amount = transfer.get("tokenAmount", 0)
+
+                    # Estimate USD value (rough, assumes 9 decimals)
+                    amount_normalized = amount / 1e9
+                    amount_usd = amount_normalized * price_usd if price_usd else 0
+
+                    # Only include transfers above threshold
+                    if amount_usd >= min_amount_usd:
+                        whale_movements.append({
+                            "from": transfer.get("fromUserAccount"),
+                            "to": transfer.get("toUserAccount"),
+                            "amount": amount,
+                            "amount_usd": round(amount_usd, 2),
+                            "timestamp": tx.get("timestamp"),
+                            "tx_signature": tx.get("signature")
+                        })
+
+            # Sort by USD value descending
+            whale_movements.sort(key=lambda x: x["amount_usd"], reverse=True)
+
+            logger.info(f"Found {len(whale_movements[:limit])} whale movements above ${min_amount_usd:,.0f}")
+            return whale_movements[:limit]
+
+        except Exception as e:
+            logger.error(f"Error fetching whale movements: {e}")
+            return []
+
+    async def fetch_latest_tokens(
+        self,
+        platform: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """
+        Fetch recently created tokens from Solscan.
+
+        Args:
+            platform: Filter by platform (pumpfun, raydium, orca, etc.) or None for all
+            limit: Max number of tokens to fetch
+
+        Returns:
+            List of new tokens with metadata
+        """
+        logger.info(f"Fetching latest tokens (platform={platform or 'all'}, limit={limit})...")
+
+        try:
+            headers = {
+                "token": self.api_key,
+                "accept": "application/json"
+            }
+
+            url = f"{self.base_url}/token/latest"
+            params = {
+                "page": 1,
+                "page_size": min(limit, 100)  # Max 100 per request
+            }
+
+            if platform:
+                params["platform_id"] = platform
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers, params=params) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Solscan latest tokens API error: {response.status}")
+                        logger.error(f"Response: {error_text[:500]}")
+                        return []
+
+                    data = await response.json()
+
+                    if not data.get("success"):
+                        logger.error(f"Solscan latest tokens API returned success=false: {data}")
+                        return []
+
+                    tokens = data.get("data", [])
+                    logger.info(f"Found {len(tokens)} new tokens")
+                    return tokens
+
+        except Exception as e:
+            logger.error(f"Error fetching latest tokens: {e}")
+            return []
+
     async def fetch_token_transfers(
         self,
         token_address: str,

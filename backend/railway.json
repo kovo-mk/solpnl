@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python add_logo_column.py && python add_solscan_cache_table.py && python add_transaction_analysis_columns.py && python add_suspicious_wallet_tokens_table.py && uvicorn main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "python add_logo_column.py && python add_solscan_cache_table.py && python add_transaction_analysis_columns.py && python add_suspicious_wallet_tokens_table.py && python add_liquidity_whale_columns.py && uvicorn main:app --host 0.0.0.0 --port $PORT",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
   }

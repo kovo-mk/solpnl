@@ -15,6 +15,7 @@ from database.models import (
 from services.fraud_analyzer import FraudAnalyzer
 from services.helius import HeliusService
 from services.wash_trading_analyzer import WashTradingAnalyzer
+from services.solscan_api import SolscanProAPI
 from config import settings
 
 
@@ -626,6 +627,34 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
 
         db.commit()
         logger.info(f"Saved {len(saved_wallets)} unique suspicious wallets for {token_address}")
+
+        # 5.6. Fetch liquidity pools and whale movements (if Solscan API key available)
+        liquidity_pools_data = None
+        whale_movements_data = None
+
+        if settings.SOLSCAN_API_KEY:
+            try:
+                solscan_client = SolscanProAPI(settings.SOLSCAN_API_KEY, db)
+
+                # Fetch liquidity pools
+                liquidity_pools = await solscan_client.fetch_token_markets(token_address)
+                if liquidity_pools:
+                    liquidity_pools_data = json.dumps(liquidity_pools)
+                    logger.info(f"Fetched {len(liquidity_pools)} liquidity pools")
+
+                # Fetch whale movements (transfers above $10k)
+                whale_movements = await solscan_client.fetch_whale_movements(token_address, min_amount_usd=10000, limit=50)
+                if whale_movements:
+                    whale_movements_data = json.dumps(whale_movements)
+                    logger.info(f"Fetched {len(whale_movements)} whale movements")
+
+                # Update report with liquidity and whale data
+                report.liquidity_pools = liquidity_pools_data
+                report.whale_movements = whale_movements_data
+                db.commit()
+
+            except Exception as e:
+                logger.warning(f"Failed to fetch liquidity/whale data from Solscan: {e}")
 
         # 6. Update request status
         analysis_request.status = "completed"
