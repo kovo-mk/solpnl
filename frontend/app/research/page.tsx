@@ -121,6 +121,9 @@ export default function ResearchPage() {
   const [selectedPattern, setSelectedPattern] = useState<{name: string, transactions: string[]} | null>(null);
   const [relatedTokens, setRelatedTokens] = useState<RelatedToken[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(false);
+  const [selectedRelatedToken, setSelectedRelatedToken] = useState<RelatedToken | null>(null);
+  const [sharedWallets, setSharedWallets] = useState<any[]>([]);
+  const [loadingSharedWallets, setLoadingSharedWallets] = useState(false);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -261,6 +264,35 @@ export default function ResearchPage() {
       setRelatedTokens([]);
     } finally {
       setLoadingRelated(false);
+    }
+  };
+
+  const fetchSharedWallets = async (token1: string, token2: string) => {
+    setLoadingSharedWallets(true);
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const response = await fetch(`${API_BASE}/research/shared-wallets/${token1}/${token2}`);
+
+      if (!response.ok) {
+        console.error('Failed to fetch shared wallets');
+        setSharedWallets([]);
+        return;
+      }
+
+      const data = await response.json();
+      setSharedWallets(data.shared_wallets || []);
+    } catch (err) {
+      console.error('Error fetching shared wallets:', err);
+      setSharedWallets([]);
+    } finally {
+      setLoadingSharedWallets(false);
+    }
+  };
+
+  const handleRelatedTokenClick = async (relatedToken: RelatedToken) => {
+    setSelectedRelatedToken(relatedToken);
+    if (report) {
+      await fetchSharedWallets(report.token_address, relatedToken.token_address);
     }
   };
 
@@ -1234,19 +1266,28 @@ export default function ResearchPage() {
                             {token.token_address.slice(0, 8)}...{token.token_address.slice(-8)}
                           </div>
 
-                          {/* View report button */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTokenAddress(token.token_address);
-                              setReport(null);
-                              setRelatedTokens([]);
-                              analyzeToken();
-                            }}
-                            className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
-                          >
-                            View Full Report →
-                          </button>
+                          {/* Action buttons */}
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRelatedTokenClick(token)}
+                              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-lg transition-colors"
+                            >
+                              View Shared Wallets ({token.shared_wallet_count})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTokenAddress(token.token_address);
+                                setReport(null);
+                                setRelatedTokens([]);
+                                analyzeToken();
+                              }}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                            >
+                              View Full Report →
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1339,6 +1380,95 @@ export default function ResearchPage() {
             </div>
             </div>
             {/* End of Printable Report Content */}
+          </div>
+        )}
+
+        {/* Shared Wallets Modal */}
+        {selectedRelatedToken && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedRelatedToken(null)}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Shared Suspicious Wallets
+                  </h2>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Between</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {report?.token_symbol || 'Current Token'}
+                    </span>
+                    <span className="text-gray-600 dark:text-gray-400">and</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {selectedRelatedToken.token_symbol || selectedRelatedToken.token_name}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRelatedToken(null)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                {loadingSharedWallets ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                    <span className="ml-3 text-gray-600 dark:text-gray-400">Loading shared wallets...</span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      Found {sharedWallets.length} wallet{sharedWallets.length !== 1 ? 's' : ''} that appear suspicious in both tokens ({selectedRelatedToken.overlap_percentage}% overlap)
+                    </p>
+                    <div className="space-y-3">
+                      {sharedWallets.map((wallet, idx) => (
+                        <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-mono text-sm text-gray-900 dark:text-white break-all mb-2">
+                                {wallet.wallet_address}
+                              </div>
+                              <div className="flex flex-wrap gap-3 text-xs text-gray-600 dark:text-gray-400">
+                                {wallet.pattern_type && (
+                                  <div>
+                                    <span className="font-semibold">Pattern:</span>{' '}
+                                    <span className="text-orange-600 dark:text-orange-400">
+                                      {wallet.pattern_type.replace(/_/g, ' ')}
+                                    </span>
+                                  </div>
+                                )}
+                                <div>
+                                  <span className="font-semibold">{report?.token_symbol || 'Token 1'} trades:</span>{' '}
+                                  <span className="text-gray-900 dark:text-white">{wallet.token1_trade_count}</span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold">{selectedRelatedToken.token_symbol || 'Token 2'} trades:</span>{' '}
+                                  <span className="text-gray-900 dark:text-white">{wallet.token2_trade_count}</span>
+                                </div>
+                                <div>
+                                  <span className="font-semibold">Total trades:</span>{' '}
+                                  <span className="text-orange-600 dark:text-orange-400 font-semibold">{wallet.total_trade_count}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <a
+                              href={`https://solscan.io/account/${wallet.wallet_address}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-lg whitespace-nowrap transition-colors text-center"
+                            >
+                              View on Solscan →
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
 

@@ -718,3 +718,55 @@ async def get_related_manipulated_tokens(token_address: str, db: Session = Depen
         "related_tokens": related_tokens,
         "message": f"Found {len(related_tokens)} related tokens sharing suspicious wallets"
     }
+
+
+@router.get("/shared-wallets/{token_address1}/{token_address2}")
+async def get_shared_wallets(token_address1: str, token_address2: str, db: Session = Depends(get_db)):
+    """
+    Get the list of wallet addresses that are suspicious in both tokens.
+    Returns wallet details including pattern type and trade counts.
+    """
+    from database.models import SuspiciousWalletToken
+    from sqlalchemy import and_
+
+    # Get wallets for token 1
+    token1_wallets = db.query(SuspiciousWalletToken).filter(
+        SuspiciousWalletToken.token_address == token_address1
+    ).all()
+
+    # Get wallets for token 2
+    token2_wallets = db.query(SuspiciousWalletToken).filter(
+        SuspiciousWalletToken.token_address == token_address2
+    ).all()
+
+    # Create sets of wallet addresses
+    token1_addresses = {w.wallet_address for w in token1_wallets}
+    token2_addresses = {w.wallet_address for w in token2_wallets}
+
+    # Find intersection
+    shared_addresses = token1_addresses.intersection(token2_addresses)
+
+    # Build detailed response
+    shared_wallets = []
+    for wallet_addr in shared_addresses:
+        # Get details from both tokens
+        t1_wallet = next((w for w in token1_wallets if w.wallet_address == wallet_addr), None)
+        t2_wallet = next((w for w in token2_wallets if w.wallet_address == wallet_addr), None)
+
+        shared_wallets.append({
+            "wallet_address": wallet_addr,
+            "pattern_type": t1_wallet.pattern_type if t1_wallet else (t2_wallet.pattern_type if t2_wallet else None),
+            "token1_trade_count": t1_wallet.trade_count if t1_wallet else 0,
+            "token2_trade_count": t2_wallet.trade_count if t2_wallet else 0,
+            "total_trade_count": (t1_wallet.trade_count or 0) + (t2_wallet.trade_count or 0)
+        })
+
+    # Sort by total trade count
+    shared_wallets.sort(key=lambda x: x["total_trade_count"], reverse=True)
+
+    return {
+        "token_address1": token_address1,
+        "token_address2": token_address2,
+        "shared_wallet_count": len(shared_wallets),
+        "shared_wallets": shared_wallets
+    }
