@@ -911,8 +911,8 @@ export default function ResearchPage() {
                           <div className="text-sm text-red-700 dark:text-red-300">Same wallet pairs trading 10+ times</div>
                           <div className="text-xs text-red-600 dark:text-red-400 mt-1">
                             +30 risk points
-                            {report.pattern_transactions?.['extreme_wash_trading']?.length > 0 && (
-                              <span className="ml-2">• {report.pattern_transactions?.['extreme_wash_trading']?.length} transactions</span>
+                            {report?.pattern_transactions?.['extreme_wash_trading']?.length && report.pattern_transactions['extreme_wash_trading'].length > 0 && (
+                              <span className="ml-2">• {report.pattern_transactions['extreme_wash_trading'].length} transactions</span>
                             )}
                           </div>
                         </div>
@@ -933,8 +933,8 @@ export default function ResearchPage() {
                           <div className="text-sm text-orange-700 dark:text-orange-300">Wallets trading repeatedly together</div>
                           <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
                             +10-40 risk points
-                            {report.pattern_transactions?.['repeated_wallet_pairs']?.length > 0 && (
-                              <span className="ml-2">• {report.pattern_transactions?.['repeated_wallet_pairs']?.length} transactions</span>
+                            {report?.pattern_transactions?.['repeated_wallet_pairs']?.length && report.pattern_transactions['repeated_wallet_pairs'].length > 0 && (
+                              <span className="ml-2">• {report.pattern_transactions['repeated_wallet_pairs'].length} transactions</span>
                             )}
                           </div>
                         </div>
@@ -971,8 +971,8 @@ export default function ResearchPage() {
                           <div className="text-sm text-red-700 dark:text-red-300">Automated rapid trading detected</div>
                           <div className="text-xs text-red-600 dark:text-red-400 mt-1">
                             +25 risk points
-                            {report.pattern_transactions?.['bot_trading_detected']?.length > 0 && (
-                              <span className="ml-2">• {report.pattern_transactions?.['bot_trading_detected']?.length} transactions</span>
+                            {report?.pattern_transactions?.['bot_trading_detected']?.length && report.pattern_transactions['bot_trading_detected'].length > 0 && (
+                              <span className="ml-2">• {report.pattern_transactions['bot_trading_detected'].length} transactions</span>
                             )}
                           </div>
                         </div>
