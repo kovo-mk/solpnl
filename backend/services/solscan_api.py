@@ -33,11 +33,14 @@ class SolscanProAPI:
             List of transactions in Helius-compatible format
         """
         logger.info(f"Fetching token transfers from Solscan Pro for {token_address[:8]}...")
+        logger.info(f"API Key present: {bool(self.api_key)}, Key length: {len(self.api_key) if self.api_key else 0}")
 
         try:
             # Calculate time range
             end_time = int(datetime.now().timestamp())
             start_time = int((datetime.now() - timedelta(days=days_back)).timestamp())
+
+            logger.info(f"Time range: {start_time} to {end_time} ({days_back} days)")
 
             all_transfers = []
             page = 1
@@ -47,6 +50,8 @@ class SolscanProAPI:
                 "token": self.api_key,
                 "accept": "application/json"
             }
+
+            logger.info(f"Request headers: token={self.api_key[:10]}...")
 
             async with aiohttp.ClientSession() as session:
                 while len(all_transfers) < limit:
@@ -61,12 +66,16 @@ class SolscanProAPI:
                         "exclude_amount_zero": "true"  # Skip zero-amount transfers
                     }
 
-                    logger.info(f"Fetching page {page}...")
+                    logger.info(f"Fetching page {page} from {url}")
+                    logger.info(f"Params: {params}")
 
                     async with session.get(url, headers=headers, params=params) as response:
                         if response.status != 200:
                             error_text = await response.text()
-                            logger.error(f"Solscan API error: {response.status} - {error_text}")
+                            logger.error(f"Solscan API error: {response.status}")
+                            logger.error(f"Response: {error_text[:500]}")
+                            logger.error(f"Request URL: {url}")
+                            logger.error(f"Request params: {params}")
                             break
 
                         data = await response.json()
