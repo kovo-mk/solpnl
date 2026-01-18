@@ -1,4 +1,4 @@
-"""Solscan Pro API integration for token transfer data."""
+"""Solscan Pro API integration for token transfer data and market info."""
 
 import asyncio
 import aiohttp
