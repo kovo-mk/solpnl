@@ -25,6 +25,24 @@ interface RelatedToken {
   analyzed_at: string;
 }
 
+interface LiquidityPool {
+  dex: string;
+  pool_address: string;
+  liquidity_usd: number;
+  created_at: string;
+  volume_24h?: number;
+  price_usd?: number;
+}
+
+interface WhaleMovement {
+  from: string;
+  to: string;
+  amount: number;
+  amount_usd: number;
+  timestamp: number;
+  tx_signature: string;
+}
+
 interface TokenReport {
   token_address: string;
   risk_score: number;
@@ -86,6 +104,9 @@ interface TokenReport {
       bot_wallets_detected: number;
     };
   };
+  // Liquidity and whale tracking
+  liquidity_pools?: string | null;  // JSON string
+  whale_movements?: string | null;  // JSON string
   // Other
   red_flags: RedFlag[];
   suspicious_patterns: string[];
@@ -124,6 +145,9 @@ export default function ResearchPage() {
   const [selectedRelatedToken, setSelectedRelatedToken] = useState<RelatedToken | null>(null);
   const [sharedWallets, setSharedWallets] = useState<any[]>([]);
   const [loadingSharedWallets, setLoadingSharedWallets] = useState(false);
+  const [activeTab, setActiveTab] = useState<'overview' | 'network' | 'liquidity' | 'whales'>('overview');
+  const [liquidityPools, setLiquidityPools] = useState<LiquidityPool[]>([]);
+  const [whaleMovements, setWhaleMovements] = useState<WhaleMovement[]>([]);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -147,6 +171,37 @@ export default function ResearchPage() {
       localStorage.setItem('theme', 'light');
     }
   };
+
+  // Parse liquidity pools and whale movements when report loads
+  useEffect(() => {
+    if (report) {
+      // Parse liquidity pools
+      if (report.liquidity_pools) {
+        try {
+          const pools = JSON.parse(report.liquidity_pools);
+          setLiquidityPools(pools);
+        } catch (e) {
+          console.error('Failed to parse liquidity_pools:', e);
+          setLiquidityPools([]);
+        }
+      } else {
+        setLiquidityPools([]);
+      }
+
+      // Parse whale movements
+      if (report.whale_movements) {
+        try {
+          const whales = JSON.parse(report.whale_movements);
+          setWhaleMovements(whales);
+        } catch (e) {
+          console.error('Failed to parse whale_movements:', e);
+          setWhaleMovements([]);
+        }
+      } else {
+        setWhaleMovements([]);
+      }
+    }
+  }, [report]);
 
   // PDF Export handler
   const handlePrint = useReactToPrint({
