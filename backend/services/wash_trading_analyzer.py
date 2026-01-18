@@ -1,4 +1,5 @@
 """Wash trading and market manipulation detection."""
+import asyncio
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -291,6 +292,103 @@ class WashTradingAnalyzer:
 
         return summary
 
+    async def fetch_solscan_transactions(
+        self,
+        token_address: str,
+        limit: int = 1000,
+        days_back: int = 30
+    ) -> List[Dict]:
+        """
+        Fetch token transfer transactions from Solscan API (free tier).
+
+        Solscan provides comprehensive token transfer data without requiring
+        complex RPC queries. Free tier: 5,000 requests/day.
+
+        Args:
+            token_address: Token mint address
+            limit: Max transactions to fetch (default 1000)
+            days_back: Days to look back (default 30)
+
+        Returns:
+            List of transaction dictionaries in Helius-compatible format
+        """
+        logger.info(f"Fetching Solscan transactions for {token_address[:8]}... (limit: {limit})")
+
+        try:
+            transactions = []
+            offset = 0
+            page_size = 50  # Solscan returns max 50 per request
+            time_cutoff = int((datetime.now() - timedelta(days=days_back)).timestamp())
+
+            async with aiohttp.ClientSession() as session:
+                while len(transactions) < limit:
+                    # Solscan Public API endpoint (free tier)
+                    url = f"https://public-api.solscan.io/account/transactions"
+                    params = {
+                        "account": token_address,
+                        "limit": page_size,
+                        "offset": offset
+                    }
+
+                    async with session.get(url, params=params) as response:
+                        if response.status != 200:
+                            logger.warning(f"Solscan API returned {response.status}")
+                            break
+
+                        data = await response.json()
+
+                        if not data or not isinstance(data, list):
+                            logger.info(f"No more transactions from Solscan")
+                            break
+
+                        # Convert Solscan format to our internal format
+                        for tx in data:
+                            block_time = tx.get("blockTime", 0)
+
+                            # Stop if we've gone past our time cutoff
+                            if block_time < time_cutoff:
+                                logger.info(f"Reached time cutoff at {len(transactions)} transactions")
+                                return transactions
+
+                            # Parse token transfers from Solscan format
+                            token_transfers = []
+
+                            # Solscan provides tokenBalanceChanges
+                            for change in tx.get("tokenBalanceChanges", []):
+                                if change.get("token", {}).get("address") == token_address:
+                                    token_transfers.append({
+                                        "mint": token_address,
+                                        "fromUserAccount": change.get("account"),
+                                        "toUserAccount": change.get("account"),  # Solscan shows net change
+                                        "tokenAmount": abs(change.get("amount", 0)),
+                                    })
+
+                            # Convert to Helius-compatible format
+                            transactions.append({
+                                "signature": tx.get("txHash"),
+                                "timestamp": block_time,
+                                "type": "TRANSFER",  # Solscan data is all transfers
+                                "source": "solscan",
+                                "tokenTransfers": token_transfers,
+                            })
+
+                        # Check if we got a full page (more data available)
+                        if len(data) < page_size:
+                            logger.info(f"Retrieved all available transactions: {len(transactions)}")
+                            break
+
+                        offset += page_size
+
+                        # Small delay to respect rate limits
+                        await asyncio.sleep(0.1)
+
+            logger.info(f"Fetched {len(transactions)} transactions from Solscan")
+            return transactions
+
+        except Exception as e:
+            logger.error(f"Error fetching Solscan transactions: {e}")
+            return []
+
     async def analyze_helius_transactions(
         self,
         token_address: str,
@@ -298,7 +396,7 @@ class WashTradingAnalyzer:
         days_back: int = 7
     ) -> Dict:
         """
-        Analyze actual trading transactions using Helius Enhanced Transactions API.
+        Analyze actual trading transactions using Solscan API (primary) or Helius (fallback).
 
         Detects:
         - Wash trading (same wallets trading back and forth)
@@ -324,53 +422,64 @@ class WashTradingAnalyzer:
                 metrics: {...}
             }
         """
-        if not self.helius_api_key:
-            logger.warning("No Helius API key provided, skipping transaction analysis")
-            return self._empty_transaction_analysis()
-
         logger.info(f"Fetching up to {limit} transactions for {token_address[:8]} (last {days_back} days)...")
 
         try:
-            # Calculate time filter (Unix timestamp for X days ago)
-            time_cutoff = int((datetime.now() - timedelta(days=days_back)).timestamp())
+            # Try Solscan first (free tier, comprehensive token transfer data)
+            transactions = await self.fetch_solscan_transactions(
+                token_address=token_address,
+                limit=limit,
+                days_back=days_back
+            )
 
-            transactions = []
-            before_signature = None
-            max_requests = min(limit // 100 + 1, 10)  # Max 10 requests (1000 transactions)
+            # If Solscan fails or returns no data, fallback to Helius
+            if not transactions:
+                logger.warning("Solscan returned no transactions, trying Helius fallback...")
 
-            async with aiohttp.ClientSession() as session:
-                for i in range(max_requests):
-                    url = f"https://api-mainnet.helius-rpc.com/v0/addresses/{token_address}/transactions"
-                    params = {
-                        "api-key": self.helius_api_key,
-                        "limit": 100,  # Helius max per request
-                        # Remove type filter to get ALL transactions (swaps, transfers, burns, etc.)
-                        # "type": "SWAP",  # OLD: Only swaps
-                        "gte-time": time_cutoff,  # Only last X days
-                    }
+                if not self.helius_api_key:
+                    logger.warning("No Helius API key provided, cannot fetch transactions")
+                    return self._empty_transaction_analysis()
 
-                    # Add pagination
-                    if before_signature:
-                        params["before-signature"] = before_signature
+                # Calculate time filter (Unix timestamp for X days ago)
+                time_cutoff = int((datetime.now() - timedelta(days=days_back)).timestamp())
 
-                    async with session.get(url, params=params) as response:
-                        if response.status == 200:
-                            batch = await response.json()
-                            if not batch:
-                                break  # No more transactions
+                transactions = []
+                before_signature = None
+                max_requests = min(limit // 100 + 1, 10)  # Max 10 requests (1000 transactions)
 
-                            transactions.extend(batch)
-                            logger.info(f"Fetched batch {i+1}: {len(batch)} transactions (total: {len(transactions)})")
+                async with aiohttp.ClientSession() as session:
+                    for i in range(max_requests):
+                        url = f"https://api-mainnet.helius-rpc.com/v0/addresses/{token_address}/transactions"
+                        params = {
+                            "api-key": self.helius_api_key,
+                            "limit": 100,  # Helius max per request
+                            # Remove type filter to get ALL transactions (swaps, transfers, burns, etc.)
+                            # "type": "SWAP",  # OLD: Only swaps
+                            "gte-time": time_cutoff,  # Only last X days
+                        }
 
-                            # Check if we have enough
-                            if len(transactions) >= limit:
-                                transactions = transactions[:limit]
-                                break
+                        # Add pagination
+                        if before_signature:
+                            params["before-signature"] = before_signature
 
-                            # Set pagination cursor to last transaction signature
-                            if len(batch) == 100:  # Only paginate if we got a full batch
-                                before_signature = batch[-1].get("signature")
-                            else:
+                        async with session.get(url, params=params) as response:
+                            if response.status == 200:
+                                batch = await response.json()
+                                if not batch:
+                                    break  # No more transactions
+
+                                transactions.extend(batch)
+                                logger.info(f"Helius batch {i+1}: {len(batch)} transactions (total: {len(transactions)})")
+
+                                # Check if we have enough
+                                if len(transactions) >= limit:
+                                    transactions = transactions[:limit]
+                                    break
+
+                                # Set pagination cursor to last transaction signature
+                                if len(batch) == 100:  # Only paginate if we got a full batch
+                                    before_signature = batch[-1].get("signature")
+                                else:
                                 break  # Less than 100 = no more data
                         else:
                             logger.error(f"Helius API error: {response.status}")
