@@ -94,7 +94,7 @@ export default function ResearchPage() {
 
   // PDF Export handler
   const handlePrint = useReactToPrint({
-    content: () => printRef.current,
+    contentRef: printRef,
     documentTitle: `Token-Analysis-${report?.token_symbol || report?.token_address?.slice(0, 8) || 'Report'}`,
     pageStyle: `
       @page {
