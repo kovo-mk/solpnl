@@ -831,8 +831,14 @@ class WashTradingAnalyzer:
         patterns = []
         score = 0
 
+        # Track which transactions belong to which patterns (for clickable patterns)
+        pattern_transactions = defaultdict(list)  # pattern_name -> [transaction_signatures]
+        pair_transactions = defaultdict(list)  # (wallet1, wallet2) -> [signatures]
+        wallet_transaction_signatures = defaultdict(list)  # wallet -> [signatures]
+
         for tx in transactions:
             timestamp = tx.get("timestamp")
+            signature = tx.get("signature")
             token_transfers = tx.get("tokenTransfers", [])
             tx_type = tx.get("type", "UNKNOWN")
             source = tx.get("source", "")
@@ -877,13 +883,20 @@ class WashTradingAnalyzer:
                     "source": source
                 })
 
+                # Track signatures for each wallet
+                if signature:
+                    wallet_transaction_signatures[from_addr].append(signature)
+                    wallet_transaction_signatures[to_addr].append(signature)
+
                 # Track counterparties
                 wallet_counterparties[from_addr].add(to_addr)
                 wallet_counterparties[to_addr].add(from_addr)
 
-                # Track pairs
+                # Track pairs and their transaction signatures
                 pair = tuple(sorted([from_addr, to_addr]))
                 trade_pairs[pair] += 1
+                if signature:
+                    pair_transactions[pair].append(signature)
 
                 # Track connections for circular trading
                 wallet_connections[from_addr].append((to_addr, timestamp))
@@ -906,11 +919,19 @@ class WashTradingAnalyzer:
             patterns.append("repeated_wallet_pairs")
             score += min(len(suspicious_pairs) * 10, 40)
 
+            # Collect transaction signatures for this pattern
+            for pair, _ in suspicious_pairs:
+                pattern_transactions["repeated_wallet_pairs"].extend(pair_transactions[pair])
+
             # Very suspicious if same pair trades 10+ times
             very_suspicious = [p for p, c in suspicious_pairs if c >= 10]
             if very_suspicious:
                 patterns.append("extreme_wash_trading")
                 score += 30
+
+                # Collect transaction signatures for extreme wash trading
+                for pair, _ in very_suspicious:
+                    pattern_transactions["extreme_wash_trading"].extend(pair_transactions[pair])
 
         # 2. Detect low unique trader ratio
         unique_traders = len(wallet_trades)
@@ -929,6 +950,10 @@ class WashTradingAnalyzer:
         if bot_wallets:
             patterns.append("bot_trading_detected")
             score += min(len(bot_wallets) * 5, 25)
+
+            # Collect transaction signatures for bot wallets
+            for wallet in bot_wallets:
+                pattern_transactions["bot_trading_detected"].extend(wallet_transaction_signatures[wallet])
 
         # 4. Detect wallets with very few counterparties (same wallets trading with each other)
         isolated_traders = []
@@ -1013,6 +1038,13 @@ class WashTradingAnalyzer:
                     "pattern": "isolated_trading"
                 })
 
+        # Deduplicate and limit transaction signatures per pattern (max 100 per pattern)
+        pattern_transactions_clean = {}
+        for pattern_name, sigs in pattern_transactions.items():
+            # Remove duplicates and limit to 100 most recent
+            unique_sigs = list(dict.fromkeys(sigs))[:100]
+            pattern_transactions_clean[pattern_name] = unique_sigs
+
         # Calculate final metrics
         return {
             "wash_trading_score": min(score, 100),
@@ -1024,6 +1056,7 @@ class WashTradingAnalyzer:
             "rapid_trade_count": len(rapid_trades),
             "circular_trading_rings": len(circular_rings),
             "suspicious_patterns": patterns,
+            "pattern_transactions": pattern_transactions_clean,  # NEW: Transaction signatures for each pattern
             "top_suspicious_pairs": sorted(suspicious_pairs, key=lambda x: x[1], reverse=True)[:5],
             "suspicious_wallets": suspicious_wallet_details[:20],  # Limit to top 20
             # Transaction type breakdown for comprehensive analysis

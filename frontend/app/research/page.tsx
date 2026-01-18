@@ -74,6 +74,7 @@ interface TokenReport {
   // Other
   red_flags: RedFlag[];
   suspicious_patterns: string[];
+  pattern_transactions?: Record<string, string[]>;  // pattern_name -> [transaction_signatures]
   suspicious_wallets?: Array<{
     wallet1: string;
     wallet2?: string;
@@ -102,6 +103,7 @@ export default function ResearchPage() {
   const [error, setError] = useState('');
   const [isDark, setIsDark] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
+  const [selectedPattern, setSelectedPattern] = useState<{name: string, transactions: string[]} | null>(null);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -895,18 +897,44 @@ export default function ResearchPage() {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Detected Manipulation Patterns</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {report.suspicious_patterns.includes('extreme_wash_trading') && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <div
+                          className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                          onClick={() => {
+                            const txs = report.pattern_transactions?.['extreme_wash_trading'] || [];
+                            if (txs.length > 0) {
+                              setSelectedPattern({name: 'Extreme Wash Trading', transactions: txs});
+                            }
+                          }}
+                        >
                           <div className="font-semibold text-red-900 dark:text-red-100">Extreme Wash Trading</div>
                           <div className="text-sm text-red-700 dark:text-red-300">Same wallet pairs trading 10+ times</div>
-                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">+30 risk points</div>
+                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            +30 risk points
+                            {report.pattern_transactions?.['extreme_wash_trading']?.length > 0 && (
+                              <span className="ml-2">• {report.pattern_transactions['extreme_wash_trading'].length} transactions</span>
+                            )}
+                          </div>
                         </div>
                       )}
 
                       {report.suspicious_patterns.includes('repeated_wallet_pairs') && (
-                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
+                        <div
+                          className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                          onClick={() => {
+                            const txs = report.pattern_transactions?.['repeated_wallet_pairs'] || [];
+                            if (txs.length > 0) {
+                              setSelectedPattern({name: 'Repeated Trading Pairs', transactions: txs});
+                            }
+                          }}
+                        >
                           <div className="font-semibold text-orange-900 dark:text-orange-100">Repeated Trading Pairs</div>
                           <div className="text-sm text-orange-700 dark:text-orange-300">Wallets trading repeatedly together</div>
-                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">+10-40 risk points</div>
+                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                            +10-40 risk points
+                            {report.pattern_transactions?.['repeated_wallet_pairs']?.length > 0 && (
+                              <span className="ml-2">• {report.pattern_transactions['repeated_wallet_pairs'].length} transactions</span>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -927,10 +955,23 @@ export default function ResearchPage() {
                       )}
 
                       {report.suspicious_patterns.includes('bot_trading_detected') && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                        <div
+                          className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                          onClick={() => {
+                            const txs = report.pattern_transactions?.['bot_trading_detected'] || [];
+                            if (txs.length > 0) {
+                              setSelectedPattern({name: 'Bot Trading Detected', transactions: txs});
+                            }
+                          }}
+                        >
                           <div className="font-semibold text-red-900 dark:text-red-100">Bot Trading Detected</div>
                           <div className="text-sm text-red-700 dark:text-red-300">Automated rapid trading detected</div>
-                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">+25 risk points</div>
+                          <div className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            +25 risk points
+                            {report.pattern_transactions?.['bot_trading_detected']?.length > 0 && (
+                              <span className="ml-2">• {report.pattern_transactions['bot_trading_detected'].length} transactions</span>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -1125,6 +1166,48 @@ export default function ResearchPage() {
             </div>
             </div>
             {/* End of Printable Report Content */}
+          </div>
+        )}
+
+        {/* Transaction Modal */}
+        {selectedPattern && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedPattern(null)}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedPattern.name}</h2>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPattern(null)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  Found {selectedPattern.transactions.length} suspicious transaction{selectedPattern.transactions.length !== 1 ? 's' : ''} matching this pattern
+                </p>
+                <div className="space-y-2">
+                  {selectedPattern.transactions.map((signature, idx) => (
+                    <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between">
+                        <div className="font-mono text-sm text-gray-900 dark:text-white truncate flex-1">
+                          {signature}
+                        </div>
+                        <a
+                          href={`https://solscan.io/tx/${signature}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-3 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-md whitespace-nowrap transition-colors"
+                        >
+                          View on Solscan →
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
