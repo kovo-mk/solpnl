@@ -430,11 +430,11 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         wash_analyzer = WashTradingAnalyzer(helius_api_key=settings.HELIUS_API_KEY)
 
         # Run Helius transaction analysis for real wash trading detection
-        # Fetch up to 500 transactions from last 7 days for comprehensive analysis
+        # Fetch up to 1000 transactions from last 30 days for comprehensive analysis
         helius_analysis = await wash_analyzer.analyze_helius_transactions(
             token_address=token_address,
-            limit=500,  # Analyze up to 500 swaps
-            days_back=7  # Last 7 days
+            limit=1000,  # Analyze up to 1000 transactions (all types)
+            days_back=30  # Last 30 days for better pattern detection
         )
         logger.info(f"Helius analysis - Unique traders: {helius_analysis['unique_traders']}, "
                    f"Total txns: {helius_analysis['total_transactions']}, "

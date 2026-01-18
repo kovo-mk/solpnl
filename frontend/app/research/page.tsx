@@ -37,6 +37,15 @@ interface TokenReport {
   airdrop_likelihood?: string | null;
   liquidity_usd?: number | null;
   price_change_24h?: number | null;
+  // Transaction breakdown
+  transaction_breakdown?: {
+    swaps: number;
+    transfers: number;
+    burns: number;
+    other: number;
+    total: number;
+    by_type: Record<string, number>;
+  };
   // Other
   red_flags: RedFlag[];
   suspicious_patterns: string[];
@@ -658,7 +667,7 @@ export default function ResearchPage() {
                   <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                     <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Transactions Analyzed</div>
                     <div className="text-xl font-bold text-gray-900 dark:text-white">{report.txns_24h_total}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Last 7 days</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Last 30 days</div>
                   </div>
 
                   <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
@@ -698,6 +707,48 @@ export default function ResearchPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Transaction Type Breakdown */}
+                {report.transaction_breakdown && (
+                  <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-5 border border-blue-200 dark:border-blue-700">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">📊 Transaction Type Breakdown</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-gray-200 dark:border-gray-700">
+                        <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{report.transaction_breakdown.swaps}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Swaps</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                          {report.transaction_breakdown.total > 0 ? ((report.transaction_breakdown.swaps / report.transaction_breakdown.total) * 100).toFixed(0) : 0}%
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-gray-200 dark:border-gray-700">
+                        <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{report.transaction_breakdown.transfers}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Transfers</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                          {report.transaction_breakdown.total > 0 ? ((report.transaction_breakdown.transfers / report.transaction_breakdown.total) * 100).toFixed(0) : 0}%
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-gray-200 dark:border-gray-700">
+                        <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">{report.transaction_breakdown.burns}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Burns</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                          {report.transaction_breakdown.total > 0 ? ((report.transaction_breakdown.burns / report.transaction_breakdown.total) * 100).toFixed(0) : 0}%
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-gray-200 dark:border-gray-700">
+                        <div className="text-2xl font-bold text-gray-600 dark:text-gray-400">{report.transaction_breakdown.other}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Other</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                          {report.transaction_breakdown.total > 0 ? ((report.transaction_breakdown.other / report.transaction_breakdown.total) * 100).toFixed(0) : 0}%
+                        </div>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-gray-200 dark:border-gray-700">
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">{report.transaction_breakdown.total}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Total</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">100%</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Pattern Breakdown */}
                 {report.suspicious_patterns && report.suspicious_patterns.length > 0 && (
