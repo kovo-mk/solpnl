@@ -73,6 +73,7 @@ else:
 
 logger.info(f"SOLSCAN_API_KEY loaded: {bool(settings.SOLSCAN_API_KEY)}")
 if settings.SOLSCAN_API_KEY:
-    logger.info(f"SOLSCAN_API_KEY prefix: {settings.SOLSCAN_API_KEY[:10]}...")
+    logger.info(f"SOLSCAN_API_KEY prefix: {settings.SOLSCAN_API_KEY[:15]}...")
+    logger.info(f"SOLSCAN_API_KEY length: {len(settings.SOLSCAN_API_KEY)}")
 else:
     logger.warning("SOLSCAN_API_KEY is NOT set!")
