@@ -338,17 +338,27 @@ class WashTradingAnalyzer:
 
                 async with session.post(rpc_url, json=payload) as response:
                     if response.status != 200:
-                        logger.error(f"Failed to get token holders: {response.status}")
+                        error_text = await response.text()
+                        logger.error(f"Failed to get token holders: {response.status} - {error_text}")
                         return []
 
                     data = await response.json()
+
+                    # Check for RPC errors
+                    if "error" in data:
+                        logger.error(f"RPC error getting token holders: {data['error']}")
+                        return []
+
                     accounts = data.get("result", {}).get("value", [])
 
                     if not accounts:
-                        logger.warning("No token accounts found")
+                        logger.warning(f"No token accounts found. Response: {data}")
                         return []
 
                     logger.info(f"Found {len(accounts)} top token holders")
+                    # Log first few addresses for debugging
+                    for i, acc in enumerate(accounts[:3]):
+                        logger.info(f"  Holder {i+1}: {acc.get('address', 'N/A')[:12]}... (balance: {acc.get('amount', 0)})")
 
                 # Step 2: Query transactions for each top holder
                 for idx, account_info in enumerate(accounts[:10]):  # Query top 10 holders
@@ -369,8 +379,10 @@ class WashTradingAnalyzer:
                     async with session.get(holder_url, params=params) as tx_response:
                         if tx_response.status == 200:
                             transactions = await tx_response.json()
+                            logger.info(f"  Received {len(transactions)} transactions for this holder")
 
                             # Filter for transactions involving our token
+                            holder_token_txs = 0
                             for tx in transactions:
                                 sig = tx.get("signature")
                                 if sig in seen_signatures:
@@ -386,11 +398,15 @@ class WashTradingAnalyzer:
                                 if has_our_token:
                                     all_transactions.append(tx)
                                     seen_signatures.add(sig)
+                                    holder_token_txs += 1
 
-                            logger.info(f"  Found {len(all_transactions)} total transactions so far")
+                            logger.info(f"  {holder_token_txs} involve our token. Total: {len(all_transactions)}")
 
                             if len(all_transactions) >= limit:
                                 break
+                        else:
+                            error_text = await tx_response.text()
+                            logger.error(f"  Failed to get txns for holder: {tx_response.status} - {error_text[:200]}")
 
                     # Small delay to respect rate limits
                     await asyncio.sleep(0.2)
