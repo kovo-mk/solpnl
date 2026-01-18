@@ -292,6 +292,12 @@ class TokenAnalysisReport(Base):
     liquidity_usd = Column(Float, nullable=True)
     price_change_24h = Column(Float, nullable=True)
     market_cap_usd = Column(Float, nullable=True)
+    current_price_usd = Column(Float, nullable=True)
+
+    # Transaction analysis (stored as JSON)
+    transaction_breakdown = Column(Text, nullable=True)  # JSON: transaction type counts
+    pattern_transactions = Column(Text, nullable=True)  # JSON: pattern_name -> [signatures]
+    time_periods = Column(Text, nullable=True)  # JSON: 24h, 7d, 30d breakdown
 
     # Token metadata
     token_name = Column(String(500), nullable=True)

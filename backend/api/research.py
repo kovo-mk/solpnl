@@ -71,10 +71,18 @@ class TokenReportResponse(BaseModel):
     # Market data
     liquidity_usd: Optional[float] = None
     price_change_24h: Optional[float] = None
+    current_price_usd: Optional[float] = None
 
     # Red flags
     red_flags: list
     suspicious_patterns: list
+    pattern_transactions: Optional[dict] = None  # pattern_name -> [transaction_signatures]
+
+    # Transaction breakdown
+    transaction_breakdown: Optional[dict] = None
+
+    # Time period breakdowns
+    time_periods: Optional[dict] = None
 
     # Social/GitHub
     twitter_handle: Optional[str] = None
@@ -217,6 +225,9 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
     red_flags = json.loads(report.red_flags) if report.red_flags else []
     suspicious_patterns = json.loads(report.suspicious_patterns) if report.suspicious_patterns else []
     suspicious_wallets = json.loads(report.suspicious_wallets) if report.suspicious_wallets else []
+    transaction_breakdown = json.loads(report.transaction_breakdown) if report.transaction_breakdown else None
+    pattern_transactions = json.loads(report.pattern_transactions) if report.pattern_transactions else None
+    time_periods = json.loads(report.time_periods) if report.time_periods else None
 
     return TokenReportResponse(
         token_address=report.token_address,
@@ -247,6 +258,11 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
         suspicious_wallets=suspicious_wallets,
         liquidity_usd=report.liquidity_usd,
         price_change_24h=report.price_change_24h,
+        current_price_usd=report.current_price_usd,
+        # Transaction analysis
+        transaction_breakdown=transaction_breakdown,
+        pattern_transactions=pattern_transactions,
+        time_periods=time_periods,
         # Other
         red_flags=red_flags,
         suspicious_patterns=suspicious_patterns,
@@ -277,6 +293,9 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
     red_flags = json.loads(report.red_flags) if report.red_flags else []
     suspicious_patterns = json.loads(report.suspicious_patterns) if report.suspicious_patterns else []
     suspicious_wallets = json.loads(report.suspicious_wallets) if report.suspicious_wallets else []
+    transaction_breakdown = json.loads(report.transaction_breakdown) if report.transaction_breakdown else None
+    pattern_transactions = json.loads(report.pattern_transactions) if report.pattern_transactions else None
+    time_periods = json.loads(report.time_periods) if report.time_periods else None
 
     return TokenReportResponse(
         token_address=report.token_address,
@@ -307,6 +326,11 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
         suspicious_wallets=suspicious_wallets,
         liquidity_usd=report.liquidity_usd,
         price_change_24h=report.price_change_24h,
+        current_price_usd=report.current_price_usd,
+        # Transaction analysis
+        transaction_breakdown=transaction_breakdown,
+        pattern_transactions=pattern_transactions,
+        time_periods=time_periods,
         # Other
         red_flags=red_flags,
         suspicious_patterns=suspicious_patterns,
@@ -544,6 +568,11 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             suspicious_wallets=json.dumps(helius_analysis.get("suspicious_wallets", [])),
             liquidity_usd=market_data.get("liquidity_usd"),
             price_change_24h=market_data.get("price_change_24h"),
+            current_price_usd=market_data.get("price_usd"),
+            # Transaction analysis
+            transaction_breakdown=json.dumps(helius_analysis.get("transaction_breakdown")) if helius_analysis.get("transaction_breakdown") else None,
+            pattern_transactions=json.dumps(wash_analysis.get("pattern_transactions")) if wash_analysis.get("pattern_transactions") else None,
+            time_periods=json.dumps(wash_analysis.get("time_periods")) if wash_analysis.get("time_periods") else None,
             # AI analysis
             claude_summary=analysis_result["claude_summary"],
             claude_verdict=analysis_result["claude_verdict"],
