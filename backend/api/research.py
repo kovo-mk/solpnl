@@ -586,12 +586,15 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         from database.models import SuspiciousWalletToken
 
         suspicious_wallets = helius_analysis.get("suspicious_wallets", [])
-        for wallet_info in suspicious_wallets[:50]:  # Limit to top 50 wallets
+        saved_wallets = set()  # Track saved wallets to avoid duplicates
+
+        for wallet_info in suspicious_wallets[:50]:  # Limit to top 50 wallet pairs
             wallet_address = wallet_info.get("wallet1")
             pattern = wallet_info.get("pattern", "unknown")
             trade_count = wallet_info.get("trade_count", 0)
 
-            if wallet_address:
+            # Save wallet1 if not already saved
+            if wallet_address and wallet_address not in saved_wallets:
                 try:
                     suspicious_wallet_entry = SuspiciousWalletToken(
                         wallet_address=wallet_address,
@@ -601,27 +604,28 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
                         trade_count=trade_count
                     )
                     db.add(suspicious_wallet_entry)
+                    saved_wallets.add(wallet_address)
                 except Exception as e:
                     logger.warning(f"Failed to save suspicious wallet {wallet_address}: {e}")
-                    # Continue even if one wallet fails
 
-            # Also save wallet2 from pairs
+            # Save wallet2 from pairs if not already saved
             wallet2 = wallet_info.get("wallet2")
-            if wallet2:
+            if wallet2 and wallet2 not in saved_wallets:
                 try:
                     suspicious_wallet_entry = SuspiciousWalletToken(
                         wallet_address=wallet2,
                         token_address=token_address,
                         report_id=report.id,
-                        pattern_type=wallet_info.get("pattern", "unknown"),
-                        trade_count=wallet_info.get("trade_count", 0)
+                        pattern_type=pattern,
+                        trade_count=trade_count
                     )
                     db.add(suspicious_wallet_entry)
+                    saved_wallets.add(wallet2)
                 except Exception as e:
                     logger.warning(f"Failed to save suspicious wallet {wallet2}: {e}")
 
         db.commit()
-        logger.info(f"Saved {len(suspicious_wallets)} suspicious wallet relationships for {token_address}")
+        logger.info(f"Saved {len(saved_wallets)} unique suspicious wallets for {token_address}")
 
         # 6. Update request status
         analysis_request.status = "completed"
