@@ -3,28 +3,57 @@
 ## 🚀 Current Sprint: Tab Navigation + New Tokens Feed
 
 ### In Progress
-- [ ] **Frontend: Tab-Based Navigation** (NEXT UP)
-  - [ ] Create reusable TabNavigation component
-  - [ ] Split research page into 4 tabs: Overview, Network, Liquidity, Whales
-  - [ ] Implement lazy loading (fetch data on tab click)
-  - [ ] Add mobile swipe gestures
-  - [ ] Test on mobile devices
+- [x] **Frontend: TypeScript Setup** (COMPLETED 2026-01-18)
+  - [x] Added LiquidityPool and WhaleMovement interfaces
+  - [x] Added state: activeTab, liquidityPools, whaleMovements
+  - [x] Added useEffect to parse JSON when report loads
+  - Location: [frontend/app/research/page.tsx:28-44](frontend/app/research/page.tsx#L28-L44)
 
-### Ready to Start
+### Next Steps (Resume Here)
+- [ ] **Frontend: Tab Navigation Component** (IMMEDIATE NEXT)
+  - Insert tab bar after line 656 in page.tsx (before Token Metadata section)
+  - Create horizontal scrolling tab bar with 4 tabs:
+    - Overview (default) - Risk score, token info, wash trading
+    - Network - Related tokens, shared wallets
+    - Liquidity - DEX pools (new)
+    - Whales - Large transfers (new)
+  - Mobile-first CSS: `overflow-x-auto`, `scroll-snap-type: x mandatory`
+  - Active tab indicator with blue underline
+  - Code example:
+    ```tsx
+    <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 mb-6">
+      <div className="flex overflow-x-auto scrollbar-hide">
+        {['overview', 'network', 'liquidity', 'whales'].map(tab => (
+          <button onClick={() => setActiveTab(tab)} className={...}>
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
+    </div>
+    ```
+
 - [ ] **Frontend: Liquidity Tab Content**
-  - [ ] Parse `liquidity_pools` JSON from report
-  - [ ] Display DEX pool cards (Raydium, Orca, etc.)
-  - [ ] Show liquidity USD amounts
-  - [ ] Add Solscan pool links
-  - [ ] Handle empty state (no pools found)
+  - Show only when `activeTab === 'liquidity'`
+  - Parse `liquidity_pools` JSON from report (already done in state)
+  - Display DEX pool cards (Raydium, Orca, etc.)
+  - Show liquidity USD amounts formatted with commas
+  - Add Solscan pool links: `https://solscan.io/account/{pool_address}`
+  - Handle empty state (no pools found)
+  - Code location: Insert after line 1437 (inside tab conditional)
 
 - [ ] **Frontend: Whale Tracking Tab Content**
-  - [ ] Parse `whale_movements` JSON from report
-  - [ ] Display whale transfer table/cards
-  - [ ] Show from/to wallets with Solscan links
-  - [ ] Display USD amounts prominently
-  - [ ] Add timestamp formatting
-  - [ ] Sort by amount (largest first)
+  - Show only when `activeTab === 'whales'`
+  - Parse `whale_movements` JSON from report (already done in state)
+  - Display whale transfer cards with:
+    - From/To wallet addresses (truncated with full on hover)
+    - USD amount in large text (formatted: `$12,345.67`)
+    - Timestamp (relative: "2 hours ago" or absolute date)
+    - Solscan links for both wallets AND transaction
+  - Sort by amount_usd descending (already done in backend)
+  - Handle empty state (no large transfers found)
+  - Add directional arrow between from/to wallets
+  - Color code: Green for buys (from known DEX), Red for sells
+  - Code location: Insert after liquidity tab content
 
 - [ ] **Frontend: New Tokens Feed Page** (`/research/new-tokens`)
   - [ ] Create new page route
