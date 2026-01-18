@@ -42,6 +42,11 @@ class TokenReportResponse(BaseModel):
     verdict: str
     summary: str
 
+    # Token metadata
+    token_name: Optional[str] = None
+    token_symbol: Optional[str] = None
+    pair_created_at: Optional[datetime] = None
+
     # Holder stats
     total_holders: int  # Number of top holders analyzed (usually 20)
     total_holder_count: Optional[int] = None  # Total holder count from Solscan
@@ -218,6 +223,11 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
         risk_level=report.risk_level,
         verdict=report.claude_verdict or "unknown",
         summary=report.claude_summary or "No summary available",
+        # Token metadata
+        token_name=report.token_name,
+        token_symbol=report.token_symbol,
+        pair_created_at=report.pair_created_at,
+        # Holder stats
         total_holders=report.total_holders or 0,
         total_holder_count=report.total_holder_count,
         top_10_holder_percentage=report.top_10_holder_percentage or 0.0,
@@ -272,6 +282,11 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
         risk_level=report.risk_level,
         verdict=report.claude_verdict or "unknown",
         summary=report.claude_summary or "No summary available",
+        # Token metadata
+        token_name=report.token_name,
+        token_symbol=report.token_symbol,
+        pair_created_at=report.pair_created_at,
+        # Holder stats
         total_holders=report.total_holders or 0,
         total_holder_count=report.total_holder_count,
         top_10_holder_percentage=report.top_10_holder_percentage or 0.0,
@@ -476,6 +491,15 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         # Use Birdeye data if available, fallback to DexScreener
         market_data = birdeye_data if birdeye_data else dex_data
 
+        # Parse pair_created_at timestamp if available
+        pair_created_at = None
+        if dex_data.get("pair_created_at"):
+            try:
+                # DexScreener returns millisecond timestamp
+                pair_created_at = datetime.fromtimestamp(dex_data["pair_created_at"] / 1000, tz=timezone.utc)
+            except Exception as e:
+                logger.warning(f"Failed to parse pair_created_at: {e}")
+
         report = TokenAnalysisReport(
             token_address=token_address,
             risk_score=analysis_result["risk_score"],
@@ -490,6 +514,11 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             is_pump_fun=contract_info.get("is_pump_fun", False),
             has_freeze_authority=contract_info.get("has_freeze_authority"),
             has_mint_authority=contract_info.get("has_mint_authority"),
+            # Token metadata
+            token_name=contract_info.get("name"),
+            token_symbol=contract_info.get("symbol"),
+            pair_created_at=pair_created_at,
+            # Social info
             twitter_handle=twitter_handle,
             telegram_group=social_data.get("telegram_url") if social_data else None,
             telegram_members=telegram_members,

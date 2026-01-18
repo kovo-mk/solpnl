@@ -293,6 +293,11 @@ class TokenAnalysisReport(Base):
     price_change_24h = Column(Float, nullable=True)
     market_cap_usd = Column(Float, nullable=True)
 
+    # Token metadata
+    token_name = Column(String(500), nullable=True)
+    token_symbol = Column(String(50), nullable=True)
+    pair_created_at = Column(DateTime(timezone=True), nullable=True)  # When the trading pair was created
+
     # AI analysis summary
     claude_summary = Column(Text, nullable=True)  # Claude's natural language analysis
     claude_verdict = Column(String(50), nullable=True)  # safe, suspicious, likely_scam, confirmed_scam

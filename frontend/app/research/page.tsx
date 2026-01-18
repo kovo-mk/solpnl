@@ -15,6 +15,11 @@ interface TokenReport {
   risk_level: string;
   verdict: string;
   summary: string;
+  // Token metadata
+  token_name?: string | null;
+  token_symbol?: string | null;
+  pair_created_at?: string | null;
+  // Holder stats
   total_holders: number;  // Number analyzed (usually 20)
   total_holder_count?: number | null;  // Total from Solscan
   top_10_holder_percentage: number;
@@ -440,6 +445,42 @@ export default function ResearchPage() {
                       High risk of coordinated dump. Holder count may be misleading.
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Token Metadata */}
+            {(report.token_name || report.token_symbol || report.pair_created_at) && (
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl shadow-md p-6 border border-blue-200 dark:border-blue-700">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">🪙 Token Information</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {report.token_name && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Token Name</div>
+                      <div className="text-xl font-bold text-gray-900 dark:text-white">{report.token_name}</div>
+                    </div>
+                  )}
+                  {report.token_symbol && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Symbol</div>
+                      <div className="text-xl font-bold text-gray-900 dark:text-white">${report.token_symbol}</div>
+                    </div>
+                  )}
+                  {report.pair_created_at && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Pair Created</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-white">
+                        {new Date(report.pair_created_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {Math.floor((Date.now() - new Date(report.pair_created_at).getTime()) / (1000 * 60 * 60 * 24))} days ago
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
