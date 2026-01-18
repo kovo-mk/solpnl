@@ -344,7 +344,8 @@ class WashTradingAnalyzer:
                     params = {
                         "api-key": self.helius_api_key,
                         "limit": 100,  # Helius max per request
-                        "type": "SWAP",  # Focus on swap transactions
+                        # Remove type filter to get ALL transactions (swaps, transfers, burns, etc.)
+                        # "type": "SWAP",  # OLD: Only swaps
                         "gte-time": time_cutoff,  # Only last X days
                     }
 
@@ -417,14 +418,32 @@ class WashTradingAnalyzer:
         # Track circular trading (A->B->C->A)
         wallet_connections = defaultdict(list)  # from_wallet -> [(to_wallet, timestamp)]
 
+        # Track transaction types for comprehensive analysis
+        tx_type_counts = defaultdict(int)  # type -> count
+        swap_count = 0
+        transfer_count = 0
+        burn_count = 0
+        unknown_count = 0
+
         patterns = []
         score = 0
 
         for tx in transactions:
             timestamp = tx.get("timestamp")
             token_transfers = tx.get("tokenTransfers", [])
-            tx_type = tx.get("type")
+            tx_type = tx.get("type", "UNKNOWN")
             source = tx.get("source", "")
+
+            # Count transaction types
+            tx_type_counts[tx_type] += 1
+            if tx_type == "SWAP":
+                swap_count += 1
+            elif tx_type in ["TRANSFER", "TOKEN_TRANSFER"]:
+                transfer_count += 1
+            elif tx_type == "BURN":
+                burn_count += 1
+            else:
+                unknown_count += 1
 
             # Find transfers involving our token
             for transfer in token_transfers:
@@ -604,12 +623,22 @@ class WashTradingAnalyzer:
             "suspicious_patterns": patterns,
             "top_suspicious_pairs": sorted(suspicious_pairs, key=lambda x: x[1], reverse=True)[:5],
             "suspicious_wallets": suspicious_wallet_details[:20],  # Limit to top 20
+            # Transaction type breakdown for comprehensive analysis
+            "transaction_breakdown": {
+                "swaps": swap_count,
+                "transfers": transfer_count,
+                "burns": burn_count,
+                "other": unknown_count,
+                "total": len(transactions),
+                "by_type": dict(tx_type_counts)
+            },
             "metrics": {
                 "unique_traders": unique_traders,
                 "total_transactions": total_trades,
                 "trader_ratio": trader_ratio,
                 "wash_trading_score": min(score, 100),
-                "bot_activity": len(bot_wallets) > 0
+                "bot_activity": len(bot_wallets) > 0,
+                "transaction_types": dict(tx_type_counts)
             }
         }
 
