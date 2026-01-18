@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from loguru import logger
 import aiohttp
+from sqlalchemy.orm import Session
 
 try:
     from .solscan_api import SolscanProAPI
@@ -15,15 +16,21 @@ except ImportError:
 class WashTradingAnalyzer:
     """Analyzes tokens for wash trading and market manipulation patterns."""
 
-    def __init__(self, helius_api_key: Optional[str] = None, solscan_api_key: Optional[str] = None):
-        """Initialize with optional API keys for transaction analysis."""
+    def __init__(
+        self,
+        helius_api_key: Optional[str] = None,
+        solscan_api_key: Optional[str] = None,
+        db_session: Optional[Session] = None
+    ):
+        """Initialize with optional API keys and database session for caching."""
         self.helius_api_key = helius_api_key
         self.solscan_api_key = solscan_api_key
+        self.db = db_session
         self.solscan_client = None
 
         if solscan_api_key and SolscanProAPI:
-            self.solscan_client = SolscanProAPI(solscan_api_key)
-            logger.info("Solscan Pro API client initialized")
+            self.solscan_client = SolscanProAPI(solscan_api_key, db_session=db_session)
+            logger.info("Solscan Pro API client initialized with database caching")
 
     def analyze_trading_patterns(
         self,

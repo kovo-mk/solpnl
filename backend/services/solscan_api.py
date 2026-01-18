@@ -2,18 +2,21 @@
 
 import asyncio
 import aiohttp
-from datetime import datetime, timedelta
-from typing import Dict, List
+import json
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional
 from loguru import logger
+from sqlalchemy.orm import Session
 
 
 class SolscanProAPI:
-    """Solscan Pro API client for fetching token transfer data."""
+    """Solscan Pro API client for fetching token transfer data with database caching."""
 
-    def __init__(self, api_key: str):
-        """Initialize with Solscan Pro API key."""
+    def __init__(self, api_key: str, db_session: Optional[Session] = None):
+        """Initialize with Solscan Pro API key and optional database session for caching."""
         self.api_key = api_key
         self.base_url = "https://pro-api.solscan.io/v2.0"
+        self.db = db_session
 
     async def fetch_token_transfers(
         self,
@@ -41,6 +44,13 @@ class SolscanProAPI:
             start_time = int((datetime.now() - timedelta(days=days_back)).timestamp())
 
             logger.info(f"Time range: {start_time} to {end_time} ({days_back} days)")
+
+            # Check cache first if database session is available
+            if self.db:
+                cached_transfers = self._get_from_cache(token_address, days_back)
+                if cached_transfers:
+                    logger.info(f"✓ Using cached transfers for {token_address[:8]} ({len(cached_transfers)} transfers)")
+                    return self._convert_to_helius_format(cached_transfers, token_address)
 
             all_transfers = []
             page = 1
@@ -111,6 +121,11 @@ class SolscanProAPI:
 
             logger.info(f"Fetched {len(all_transfers)} total transfers from Solscan Pro")
 
+            # Save to cache if database session is available
+            if self.db and all_transfers:
+                self._save_to_cache(token_address, all_transfers, days_back, is_complete=(len(all_transfers) < limit))
+                logger.info(f"✓ Saved {len(all_transfers)} transfers to cache for {token_address[:8]}")
+
             # Convert to Helius-compatible format
             transactions = self._convert_to_helius_format(all_transfers, token_address)
 
@@ -163,3 +178,90 @@ class SolscanProAPI:
             "ACTIVITY_SPL_BURN": "BURN",
         }
         return mapping.get(activity_type, "TRANSFER")
+
+    def _get_from_cache(self, token_address: str, days_back: int) -> Optional[List[Dict]]:
+        """Retrieve cached transfers from database if available and not expired."""
+        if not self.db:
+            return None
+
+        try:
+            from database.models import SolscanTransferCache
+
+            # Find the most recent non-expired cache entry
+            cache_entry = (
+                self.db.query(SolscanTransferCache)
+                .filter(
+                    SolscanTransferCache.token_address == token_address,
+                    SolscanTransferCache.days_back >= days_back,
+                    SolscanTransferCache.expires_at > datetime.now(timezone.utc)
+                )
+                .order_by(SolscanTransferCache.cached_at.desc())
+                .first()
+            )
+
+            if cache_entry:
+                transfers = json.loads(cache_entry.transfers_json)
+                logger.info(
+                    f"Cache HIT for {token_address[:8]}: "
+                    f"{cache_entry.transfer_count} transfers, "
+                    f"cached {(datetime.now(timezone.utc) - cache_entry.cached_at).seconds // 60} min ago"
+                )
+                return transfers
+
+            logger.info(f"Cache MISS for {token_address[:8]}")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error reading from cache: {e}")
+            return None
+
+    def _save_to_cache(
+        self,
+        token_address: str,
+        transfers: List[Dict],
+        days_back: int,
+        is_complete: bool
+    ) -> None:
+        """Save transfers to database cache."""
+        if not self.db or not transfers:
+            return
+
+        try:
+            from database.models import SolscanTransferCache
+
+            # Extract timestamp range
+            timestamps = [t.get("block_time", 0) for t in transfers if t.get("block_time")]
+            earliest_timestamp = min(timestamps) if timestamps else 0
+            latest_timestamp = max(timestamps) if timestamps else 0
+
+            # Cache expires in 6 hours (frequent updates for active tokens)
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=6)
+
+            # Delete old cache entries for this token
+            self.db.query(SolscanTransferCache).filter(
+                SolscanTransferCache.token_address == token_address
+            ).delete()
+
+            # Create new cache entry
+            cache_entry = SolscanTransferCache(
+                token_address=token_address,
+                transfers_json=json.dumps(transfers),
+                transfer_count=len(transfers),
+                earliest_timestamp=earliest_timestamp,
+                latest_timestamp=latest_timestamp,
+                days_back=days_back,
+                expires_at=expires_at,
+                is_complete=is_complete
+            )
+
+            self.db.add(cache_entry)
+            self.db.commit()
+
+            logger.info(
+                f"Cached {len(transfers)} transfers for {token_address[:8]}, "
+                f"expires in 6 hours"
+            )
+
+        except Exception as e:
+            logger.warning(f"Error saving to cache: {e}")
+            self.db.rollback()

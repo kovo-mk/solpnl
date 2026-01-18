@@ -432,7 +432,8 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         logger.info(f"Running wash trading analysis for {token_address}")
         wash_analyzer = WashTradingAnalyzer(
             helius_api_key=settings.HELIUS_API_KEY,
-            solscan_api_key=settings.SOLSCAN_API_KEY
+            solscan_api_key=settings.SOLSCAN_API_KEY,
+            db_session=db  # Pass database session for Solscan caching
         )
 
         # Run Helius transaction analysis for real wash trading detection

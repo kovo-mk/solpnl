@@ -361,6 +361,33 @@ class WalletReputation(Base):
     )
 
 
+class SolscanTransferCache(Base):
+    """Cache for Solscan Pro API token transfer data to reduce API costs."""
+    __tablename__ = "solscan_transfer_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token_address = Column(String(255), nullable=False, index=True)
+
+    # Transfer data (stored as JSON string)
+    transfers_json = Column(Text, nullable=False)  # Raw Solscan transfer data
+
+    # Cache metadata
+    transfer_count = Column(Integer, nullable=False)  # Number of transfers cached
+    earliest_timestamp = Column(Integer, nullable=False)  # Unix timestamp of oldest transfer
+    latest_timestamp = Column(Integer, nullable=False)  # Unix timestamp of newest transfer
+    days_back = Column(Integer, default=30)  # How many days of data this cache covers
+
+    # Cache validity
+    cached_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False)  # When to invalidate cache
+    is_complete = Column(Boolean, default=False)  # True if we fetched all available transfers
+
+    __table_args__ = (
+        Index('ix_solscan_cache_token_cached', 'token_address', 'cached_at'),
+        Index('ix_solscan_cache_expires', 'expires_at'),
+    )
+
+
 class RateLimit(Base):
     """API rate limiting for analysis requests."""
     __tablename__ = "rate_limits"
