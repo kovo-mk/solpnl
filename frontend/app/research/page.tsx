@@ -31,6 +31,13 @@ interface LiquidityPool {
   liquidity_usd: number;
   created_at?: number | string;  // Unix timestamp (number) or ISO string
   volume_24h?: number;
+  volume_6h?: number;
+  volume_1h?: number;
+  price_change_24h?: number;
+  price_change_6h?: number;
+  price_change_1h?: number;
+  txns_24h_buys?: number;
+  txns_24h_sells?: number;
   price_usd?: number;
 }
 
@@ -1545,9 +1552,23 @@ export default function ResearchPage() {
                         {liquidityPools.map((pool, idx) => (
                         <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
                           <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <div className="text-lg font-bold text-gray-900 dark:text-white mb-1">
-                                {pool.dex}
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                  {pool.dex}
+                                </div>
+                                {pool.price_change_24h !== undefined && (
+                                  <div className={`px-2 py-1 rounded text-sm font-semibold ${
+                                    pool.price_change_24h >= 0
+                                      ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                      : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                                  }`}>
+                                    {pool.price_change_24h >= 0 ? '+' : ''}{pool.price_change_24h.toFixed(2)}% (24h)
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mb-1">
+                                {pool.pool_address ? `${pool.pool_address.slice(0, 8)}...${pool.pool_address.slice(-6)}` : 'Unknown address'}
                               </div>
                               <div className="text-sm text-gray-600 dark:text-gray-400">
                                 {pool.created_at && `Created: ${new Date(pool.created_at).toLocaleDateString()}`}
@@ -1560,11 +1581,49 @@ export default function ResearchPage() {
                               <div className="text-xs text-gray-500 dark:text-gray-400">Liquidity</div>
                             </div>
                           </div>
-                          {pool.volume_24h && (
-                            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                              24h Volume: ${pool.volume_24h.toLocaleString()}
-                            </div>
-                          )}
+
+                          {/* Pool Stats Grid */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                            {pool.volume_24h !== undefined && pool.volume_24h > 0 && (
+                              <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400">24h Volume</div>
+                                <div className="text-sm font-bold text-gray-900 dark:text-white">
+                                  ${pool.volume_24h.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </div>
+                              </div>
+                            )}
+                            {pool.txns_24h_buys !== undefined && pool.txns_24h_sells !== undefined && (
+                              <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400">24h Txns</div>
+                                <div className="text-sm font-bold text-gray-900 dark:text-white">
+                                  <span className="text-green-600 dark:text-green-400">{pool.txns_24h_buys}</span>
+                                  {' / '}
+                                  <span className="text-red-600 dark:text-red-400">{pool.txns_24h_sells}</span>
+                                </div>
+                              </div>
+                            )}
+                            {pool.volume_24h !== undefined && pool.liquidity_usd > 0 && (
+                              <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Vol/Liq Ratio</div>
+                                <div className="text-sm font-bold text-gray-900 dark:text-white">
+                                  {((pool.volume_24h / pool.liquidity_usd) * 100).toFixed(1)}%
+                                </div>
+                              </div>
+                            )}
+                            {pool.price_change_6h !== undefined && (
+                              <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400">6h Change</div>
+                                <div className={`text-sm font-bold ${
+                                  pool.price_change_6h >= 0
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-red-600 dark:text-red-400'
+                                }`}>
+                                  {pool.price_change_6h >= 0 ? '+' : ''}{pool.price_change_6h.toFixed(2)}%
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
                           <div className="flex items-center gap-2 mt-3">
                             <a
                               href={`https://solscan.io/account/${pool.pool_address}`}
@@ -1573,6 +1632,14 @@ export default function ResearchPage() {
                               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md transition-colors flex items-center gap-2"
                             >
                               View Pool on Solscan →
+                            </a>
+                            <a
+                              href={`https://dexscreener.com/solana/${pool.pool_address}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-md transition-colors flex items-center gap-2"
+                            >
+                              View on DexScreener →
                             </a>
                           </div>
                         </div>

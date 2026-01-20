@@ -868,6 +868,13 @@ class HeliusService:
                             "pool_address": pair.get("pairAddress"),
                             "liquidity_usd": liquidity,
                             "volume_24h": float(pair.get("volume", {}).get("h24", 0) or 0),
+                            "volume_6h": float(pair.get("volume", {}).get("h6", 0) or 0),
+                            "volume_1h": float(pair.get("volume", {}).get("h1", 0) or 0),
+                            "price_change_24h": float(pair.get("priceChange", {}).get("h24", 0) or 0),
+                            "price_change_6h": float(pair.get("priceChange", {}).get("h6", 0) or 0),
+                            "price_change_1h": float(pair.get("priceChange", {}).get("h1", 0) or 0),
+                            "txns_24h_buys": pair.get("txns", {}).get("h24", {}).get("buys", 0),
+                            "txns_24h_sells": pair.get("txns", {}).get("h24", {}).get("sells", 0),
                             "created_at": pair.get("pairCreatedAt"),
                             "price_usd": float(pair.get("priceUsd", 0) or 0),
                         })
