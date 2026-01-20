@@ -840,13 +840,17 @@ class HeliusService:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(url) as response:
                     if response.status != 200:
-                        logger.warning(f"DexScreener pools returned {response.status}")
+                        logger.error(f"DexScreener pools returned {response.status} for {token_address[:8]}")
                         return []
 
                     data = await response.json()
+                    logger.debug(f"DexScreener response for {token_address[:8]}: {str(data)[:200]}")
+
                     pairs = data.get("pairs", [])
+                    logger.info(f"DexScreener returned {len(pairs)} total pairs for {token_address[:8]}")
 
                     if not pairs:
+                        logger.warning(f"No pairs found in DexScreener response for {token_address[:8]}")
                         return []
 
                     # Format all pairs as liquidity pools
@@ -856,6 +860,7 @@ class HeliusService:
 
                         # Only include pools with meaningful liquidity (> $100)
                         if liquidity < 100:
+                            logger.debug(f"Skipping pool {pair.get('dexId')} with liquidity ${liquidity:.2f}")
                             continue
 
                         formatted_pools.append({
@@ -867,7 +872,7 @@ class HeliusService:
                             "price_usd": float(pair.get("priceUsd", 0) or 0),
                         })
 
-                    logger.info(f"Found {len(formatted_pools)} DexScreener pools for {token_address[:8]}")
+                    logger.info(f"✅ Formatted {len(formatted_pools)} DexScreener pools (>{100}) for {token_address[:8]}")
                     return formatted_pools
 
         except Exception as e:
