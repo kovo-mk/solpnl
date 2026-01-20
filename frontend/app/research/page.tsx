@@ -154,7 +154,7 @@ export default function ResearchPage() {
   const [loadingSharedWallets, setLoadingSharedWallets] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'network' | 'liquidity' | 'whales'>('overview');
   const [liquidityPools, setLiquidityPools] = useState<LiquidityPool[]>([]);
-  const [whaleMovements, setWhaleMovement[]>([]);
+  const [whaleMovements, setWhaleMovements] = useState<WhaleMovement[]>([]);
   const [showMintDistribution, setShowMintDistribution] = useState(false);
   const [mintDistribution, setMintDistribution] = useState<any>(null);
   const [loadingMintDistribution, setLoadingMintDistribution] = useState(false);
