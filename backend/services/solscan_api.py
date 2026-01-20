@@ -343,6 +343,16 @@ class SolscanProAPI:
 
     def _convert_to_helius_format(self, transfers: List[Dict], token_address: str) -> List[Dict]:
         """Convert Solscan transfer format to Helius-compatible format."""
+        # Known DEX program addresses (these indicate swaps, not regular transfers)
+        DEX_PROGRAMS = {
+            "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",  # Raydium AMM
+            "5quBtoiQqxF9Jv6KYKctB59NT3gtJD2Y65kdnB1Uev3h",  # Raydium V4
+            "9W959DqEETiGZocYWCQPaJ6sBmUzgfxXfqGeTEdp3aQP",  # Orca
+            "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",  # Orca Whirlpool
+            "HYPERfwdTjyJ2SCaKHmpF2MtrXqWxrsotYDsTrshHWq8",  # Hyperplane
+            "PSwapMdSai8tjrEXcxFeQth87xC4rRsa4VA5mhGhXkP",   # Pump.fun swap
+        }
+
         transactions = []
         seen_trans_ids = set()
 
@@ -356,6 +366,15 @@ class SolscanProAPI:
                 # Find all transfers for this transaction
                 tx_transfers = [t for t in transfers if t.get("trans_id") == trans_id]
 
+                # Detect if this is a swap by checking for DEX program addresses
+                is_swap = False
+                for t in tx_transfers:
+                    from_addr = t.get("from_address", "")
+                    to_addr = t.get("to_address", "")
+                    if from_addr in DEX_PROGRAMS or to_addr in DEX_PROGRAMS:
+                        is_swap = True
+                        break
+
                 # Convert to Helius format
                 token_transfers = []
                 for t in tx_transfers:
@@ -366,10 +385,17 @@ class SolscanProAPI:
                         "tokenAmount": int(t.get("amount", 0)),
                     })
 
+                # Determine transaction type
+                activity_type = transfer.get("activity_type")
+                if is_swap:
+                    tx_type = "SWAP"
+                else:
+                    tx_type = self._map_activity_type(activity_type)
+
                 transactions.append({
                     "signature": trans_id,
                     "timestamp": transfer.get("block_time", 0),
-                    "type": self._map_activity_type(transfer.get("activity_type")),
+                    "type": tx_type,
                     "source": "solscan_pro",
                     "tokenTransfers": token_transfers,
                 })
