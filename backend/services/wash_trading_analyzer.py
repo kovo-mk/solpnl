@@ -957,7 +957,14 @@ class WashTradingAnalyzer:
                     pattern_transactions["extreme_wash_trading"].extend(pair_transactions[pair])
 
         # 2. Detect low unique trader ratio
-        unique_traders = len(wallet_trades)
+        # Exclude known DEX/CEX programs from unique wallet count for accuracy
+        unique_wallets = {wallet for wallet in wallet_trades.keys() if wallet not in KNOWN_DEX_PROGRAMS}
+        unique_traders = len(unique_wallets)
+        total_wallets_including_dex = len(wallet_trades)
+        filtered_count = total_wallets_including_dex - unique_traders
+        if filtered_count > 0:
+            logger.info(f"Filtered out {filtered_count} DEX/CEX program wallets from unique count")
+
         total_trades = len(transactions)
         trader_ratio = unique_traders / total_trades if total_trades > 0 else 0
 
