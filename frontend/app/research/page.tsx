@@ -1491,13 +1491,67 @@ export default function ResearchPage() {
             {activeTab === 'liquidity' && (
               <div className="space-y-6">
                 {liquidityPools.length > 0 ? (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">💧 Liquidity Pools</h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                      DEX pools where this token can be traded. Higher liquidity generally indicates more stable trading.
-                    </p>
-                    <div className="space-y-4">
-                      {liquidityPools.map((pool, idx) => (
+                  <>
+                    {/* Liquidity Summary Card */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">💧 Total Liquidity</h2>
+                      {(() => {
+                        const totalLiquidity = liquidityPools.reduce((sum, pool) => sum + (pool.liquidity_usd || 0), 0);
+                        const dexBreakdown = liquidityPools.reduce((acc, pool) => {
+                          const dex = pool.dex || 'Unknown';
+                          if (!acc[dex]) acc[dex] = 0;
+                          acc[dex] += pool.liquidity_usd || 0;
+                          return acc;
+                        }, {} as Record<string, number>);
+
+                        return (
+                          <>
+                            <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-6">
+                              ${totalLiquidity.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+
+                            <div className="space-y-3">
+                              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Liquidity by Provider</h3>
+                              {Object.entries(dexBreakdown)
+                                .sort(([, a], [, b]) => b - a)
+                                .map(([dex, amount]) => {
+                                  const percentage = (amount / totalLiquidity) * 100;
+                                  return (
+                                    <div key={dex} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="font-semibold text-gray-900 dark:text-white">{dex}</span>
+                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                                          {percentage.toFixed(1)}%
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
+                                          <div
+                                            className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-500"
+                                            style={{ width: `${percentage}%` }}
+                                          />
+                                        </div>
+                                        <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                                          ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Individual Pools */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">All Liquidity Pools ({liquidityPools.length})</h2>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                        DEX pools where this token can be traded. Higher liquidity generally indicates more stable trading.
+                      </p>
+                      <div className="space-y-4">
+                        {liquidityPools.map((pool, idx) => (
                         <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-5 border border-gray-200 dark:border-gray-700">
                           <div className="flex items-start justify-between mb-3">
                             <div>
@@ -1531,9 +1585,10 @@ export default function ResearchPage() {
                             </a>
                           </div>
                         </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  </>
                 ) : (
                   <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">💧 Liquidity Pools</h2>
