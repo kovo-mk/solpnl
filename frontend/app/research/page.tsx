@@ -237,8 +237,10 @@ export default function ResearchPage() {
 
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      console.log(`[DEBUG] API_BASE: ${API_BASE}`);
 
       // 1. Submit analysis request with all provided fields
+      console.log(`[DEBUG] Submitting analysis for token: ${tokenAddress}`);
       const response = await fetch(`${API_BASE}/research/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,23 +261,29 @@ export default function ResearchPage() {
 
       // 2. Poll for completion
       const checkStatus = async (): Promise<void> => {
+        console.log(`[DEBUG] Checking status for request ${request_id}...`);
         const statusRes = await fetch(`${API_BASE}/research/status/${request_id}`);
 
         if (!statusRes.ok) {
+          console.error(`[DEBUG] Status check failed: ${statusRes.status} ${statusRes.statusText}`);
           throw new Error('Failed to check status');
         }
 
         const status = await statusRes.json();
+        console.log(`[DEBUG] Status response:`, status);
 
         if (status.status === 'completed') {
+          console.log(`[DEBUG] Analysis completed! Fetching report ${status.report_id}...`);
           // 3. Fetch full report
           const reportRes = await fetch(`${API_BASE}/research/report/${status.report_id}`);
 
           if (!reportRes.ok) {
+            console.error(`[DEBUG] Report fetch failed: ${reportRes.status} ${reportRes.statusText}`);
             throw new Error('Failed to fetch report');
           }
 
           const reportData = await reportRes.json();
+          console.log(`[DEBUG] Report fetched successfully:`, reportData);
           setReport(reportData);
 
           // Fetch related tokens in the background
@@ -285,9 +293,11 @@ export default function ResearchPage() {
 
           setLoading(false);
         } else if (status.status === 'failed') {
+          console.error(`[DEBUG] Analysis failed:`, status);
           setError('Analysis failed. Please try again.');
           setLoading(false);
         } else {
+          console.log(`[DEBUG] Still processing (status: ${status.status}), checking again in 2s...`);
           // Still processing, check again in 2 seconds
           setTimeout(checkStatus, 2000);
         }
