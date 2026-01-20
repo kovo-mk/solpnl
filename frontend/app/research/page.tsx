@@ -29,7 +29,7 @@ interface LiquidityPool {
   dex: string;
   pool_address: string;
   liquidity_usd: number;
-  created_at: string;
+  created_at?: number | string;  // Unix timestamp (number) or ISO string
   volume_24h?: number;
   price_usd?: number;
 }
@@ -105,22 +105,8 @@ interface TokenReport {
     };
   };
   // Liquidity and whale tracking
-  liquidity_pools?: Array<{
-    dex: string;
-    pool_address: string;
-    liquidity_usd: number;
-    volume_24h?: number;
-    created_at?: number;
-    price_usd?: number;
-  }> | null;
-  whale_movements?: Array<{
-    from: string;
-    to: string;
-    amount: number;
-    amount_usd: number;
-    timestamp: number;
-    tx_hash: string;
-  }> | null;
+  liquidity_pools?: LiquidityPool[] | null;
+  whale_movements?: WhaleMovement[] | null;
   // Other
   red_flags: RedFlag[];
   suspicious_patterns: string[];
