@@ -154,7 +154,10 @@ export default function ResearchPage() {
   const [loadingSharedWallets, setLoadingSharedWallets] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'network' | 'liquidity' | 'whales'>('overview');
   const [liquidityPools, setLiquidityPools] = useState<LiquidityPool[]>([]);
-  const [whaleMovements, setWhaleMovements] = useState<WhaleMovement[]>([]);
+  const [whaleMovements, setWhaleMovement[]>([]);
+  const [showMintDistribution, setShowMintDistribution] = useState(false);
+  const [mintDistribution, setMintDistribution] = useState<any>(null);
+  const [loadingMintDistribution, setLoadingMintDistribution] = useState(false);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -346,6 +349,29 @@ export default function ResearchPage() {
       setSharedWallets([]);
     } finally {
       setLoadingSharedWallets(false);
+    }
+  };
+
+  const fetchMintDistribution = async (tokenAddress: string) => {
+    setLoadingMintDistribution(true);
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const response = await fetch(`${API_BASE}/research/mint-distribution/${tokenAddress}`);
+
+      if (!response.ok) {
+        console.error('Failed to fetch mint distribution');
+        setMintDistribution(null);
+        return;
+      }
+
+      const data = await response.json();
+      setMintDistribution(data);
+      setShowMintDistribution(true);
+    } catch (err) {
+      console.error('Error fetching mint distribution:', err);
+      setMintDistribution(null);
+    } finally {
+      setLoadingMintDistribution(false);
     }
   };
 
@@ -737,6 +763,26 @@ export default function ResearchPage() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Mint Distribution Button */}
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={() => fetchMintDistribution(report.token_address)}
+                    disabled={loadingMintDistribution}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {loadingMintDistribution ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        🏦 View Mint Distribution
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             )}
@@ -1764,6 +1810,138 @@ export default function ResearchPage() {
               </div>
             )}
             {/* End of Printable Report Content */}
+            </div>
+          </div>
+        )}
+
+        {/* Mint Distribution Modal */}
+        {showMintDistribution && mintDistribution && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowMintDistribution(false)}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    🏦 Mint Wallet Distribution Analysis
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Tracking token distribution from mint authority wallet
+                  </p>
+                  <div className="mt-2 text-xs font-mono text-gray-500 dark:text-gray-400">
+                    Authority: {mintDistribution.mint_authority?.slice(0, 8)}...{mintDistribution.mint_authority?.slice(-6)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowMintDistribution(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[calc(80vh-200px)]">
+                {/* Distribution Summary */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-6 border border-purple-200 dark:border-purple-700">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Distributed</div>
+                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                      {mintDistribution.distribution?.total_distributed?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {mintDistribution.distribution?.total_distributed_pct?.toFixed(2)}% of supply
+                    </div>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Supply</div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {mintDistribution.total_supply?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {mintDistribution.distribution?.transaction_count} transactions
+                    </div>
+                  </div>
+                </div>
+
+                {/* Breakdown */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Distribution Breakdown</h3>
+
+                  {/* Sold via DEX */}
+                  <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-gray-900 dark:text-white">💱 Sold via DEX</span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        {mintDistribution.distribution?.sold_via_dex_pct?.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
+                        <div
+                          className="bg-green-600 dark:bg-green-500 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${mintDistribution.distribution?.sold_via_dex_pct || 0}%` }}
+                        />
+                      </div>
+                      <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                        {mintDistribution.distribution?.sold_via_dex?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Transferred to Wallets */}
+                  <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-gray-900 dark:text-white">📤 Transferred to Wallets</span>
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        {mintDistribution.distribution?.transferred_to_wallets_pct?.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
+                        <div
+                          className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${mintDistribution.distribution?.transferred_to_wallets_pct || 0}%` }}
+                        />
+                      </div>
+                      <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                        {mintDistribution.distribution?.transferred_to_wallets?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Burned */}
+                  {mintDistribution.distribution?.burned > 0 && (
+                    <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold text-gray-900 dark:text-white">🔥 Burned</span>
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                          {mintDistribution.distribution?.burned_pct?.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
+                          <div
+                            className="bg-red-600 dark:bg-red-500 h-2 rounded-full transition-all duration-500"
+                            style={{ width: `${mintDistribution.distribution?.burned_pct || 0}%` }}
+                          />
+                        </div>
+                        <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                          {mintDistribution.distribution?.burned?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Interpretation */}
+                <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">💡 What This Means</h4>
+                  <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                    <li>• <strong>Sold via DEX</strong>: Tokens sent to liquidity pools for trading</li>
+                    <li>• <strong>Transferred</strong>: Tokens sent to wallets (team allocation, airdrops, etc.)</li>
+                    <li>• <strong>Burned</strong>: Permanently removed from circulation</li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         )}

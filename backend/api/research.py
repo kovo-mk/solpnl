@@ -841,3 +841,58 @@ async def get_shared_wallets(token_address1: str, token_address2: str, db: Sessi
         "shared_wallet_count": len(shared_wallets),
         "shared_wallets": shared_wallets
     }
+
+
+@router.get("/mint-distribution/{token_address}")
+async def get_mint_distribution(token_address: str):
+    """
+    Analyze token distribution from the mint authority wallet.
+
+    Shows how many tokens have been distributed from the original minting wallet,
+    categorized by:
+    - Sold via DEX (Raydium, Orca, etc.)
+    - Transferred to other wallets
+    - Burned
+
+    Returns distribution breakdown with percentages and transaction details.
+    """
+    try:
+        # Get token metadata to find mint authority
+        helius = get_helius_service()
+        token_info = await helius.get_token_mint_info(token_address)
+
+        if not token_info:
+            raise HTTPException(status_code=404, detail="Token not found")
+
+        mint_authority = token_info.get("mint_authority")
+        if not mint_authority:
+            return {
+                "error": "No mint authority found",
+                "message": "This token does not have a mint authority (authority may have been revoked)"
+            }
+
+        total_supply = token_info.get("supply", 0)
+        decimals = token_info.get("decimals", 9)
+
+        # Adjust supply for decimals
+        adjusted_supply = total_supply / (10 ** decimals)
+
+        # Analyze distribution
+        distribution = await helius.analyze_mint_authority_distribution(
+            token_address,
+            mint_authority,
+            adjusted_supply
+        )
+
+        return {
+            "token_address": token_address,
+            "mint_authority": mint_authority,
+            "total_supply": adjusted_supply,
+            "distribution": distribution
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing mint distribution: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

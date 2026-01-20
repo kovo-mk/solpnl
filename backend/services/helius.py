@@ -1151,6 +1151,189 @@ class HeliusService:
             logger.error(f"Error fetching Telegram info: {e}")
             return {}
 
+    async def analyze_mint_authority_distribution(
+        self,
+        token_address: str,
+        mint_authority: str,
+        total_supply: float
+    ) -> Dict[str, Any]:
+        """
+        Analyze token distribution from the mint authority wallet using Helius Developer API.
+
+        Uses the new tokenAccounts filter to efficiently fetch only token-related transactions.
+
+        Args:
+            token_address: The token mint address
+            mint_authority: The mint authority wallet address
+            total_supply: Total token supply for percentage calculations
+
+        Returns:
+            Dict with distribution breakdown:
+            {
+                "mint_authority": str,
+                "total_distributed": float,
+                "total_distributed_pct": float,
+                "sold_via_dex": float,
+                "sold_via_dex_pct": float,
+                "transferred_to_wallets": float,
+                "transferred_to_wallets_pct": float,
+                "burned": float,
+                "burned_pct": float,
+                "transactions": List[Dict],  # Individual distribution events
+            }
+        """
+        logger.info(f"Analyzing mint distribution for {token_address[:8]} from authority {mint_authority[:8]}")
+
+        try:
+            # Use Helius getTransactionsForAddress with tokenAccounts filter
+            url = f"{self.rpc_url}"
+
+            payload = {
+                "jsonrpc": "2.0",
+                "id": "mint-distribution",
+                "method": "getTransactionsForAddress",
+                "params": [
+                    mint_authority,
+                    {
+                        "filters": {
+                            "tokenAccounts": "balanceChanged"  # Only txns that moved tokens
+                        },
+                        "sortOrder": "asc",  # Chronological order
+                        "limit": 1000  # Fetch up to 1000 transactions
+                    }
+                ]
+            }
+
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Helius RPC error: {response.status} - {error_text}")
+                        return self._empty_distribution_result(mint_authority)
+
+                    data = await response.json()
+
+                    if "error" in data:
+                        logger.error(f"RPC error: {data['error']}")
+                        return self._empty_distribution_result(mint_authority)
+
+                    transactions = data.get("result", [])
+                    logger.info(f"Fetched {len(transactions)} transactions from mint authority")
+
+            # Analyze transactions to categorize distributions
+            total_distributed = 0
+            sold_via_dex = 0
+            transferred_to_wallets = 0
+            burned = 0
+            distribution_events = []
+
+            # Known DEX programs
+            DEX_PROGRAMS = {
+                "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",  # Raydium AMM
+                "5quBtoiQqxF9Jv6KYKctB59NT3gtJD2Y65kdnB1Uev3h",  # Raydium V4
+                "9W959DqEETiGZocYWCQPaJ6sBmUzgfxXfqGeTEdp3aQP",  # Orca
+                "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",  # Orca Whirlpool
+                "HYPERfwdTjyJ2SCaKHmpF2MtrXqWxrsotYDsTrshHWq8",  # Hyperplane
+                "PSwapMdSai8tjrEXcxFeQth87xC4rRsa4VA5mhGhXkP",   # Pump.fun
+                "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",  # Jupiter
+            }
+
+            # Burn addresses
+            BURN_ADDRESSES = {
+                "1nc1nerator11111111111111111111111111111111",  # Incinerator
+                "11111111111111111111111111111111",  # System program
+            }
+
+            for tx in transactions:
+                try:
+                    # Get token transfers from transaction
+                    token_transfers = tx.get("tokenTransfers", [])
+
+                    for transfer in token_transfers:
+                        # Only analyze transfers of our specific token
+                        if transfer.get("mint") != token_address:
+                            continue
+
+                        from_account = transfer.get("fromUserAccount")
+                        to_account = transfer.get("toUserAccount")
+                        amount = transfer.get("tokenAmount", 0)
+
+                        # Only count outbound transfers from mint authority
+                        if from_account != mint_authority:
+                            continue
+
+                        # Categorize the transfer
+                        if to_account in BURN_ADDRESSES:
+                            burned += amount
+                            category = "burn"
+                        elif to_account in DEX_PROGRAMS:
+                            sold_via_dex += amount
+                            category = "dex_sale"
+                        else:
+                            transferred_to_wallets += amount
+                            category = "transfer"
+
+                        total_distributed += amount
+
+                        # Record the event
+                        distribution_events.append({
+                            "signature": tx.get("signature"),
+                            "timestamp": tx.get("timestamp"),
+                            "to_address": to_account,
+                            "amount": amount,
+                            "category": category,
+                        })
+
+                except Exception as e:
+                    logger.warning(f"Error parsing transaction: {e}")
+                    continue
+
+            # Calculate percentages
+            total_distributed_pct = (total_distributed / total_supply * 100) if total_supply > 0 else 0
+            sold_via_dex_pct = (sold_via_dex / total_distributed * 100) if total_distributed > 0 else 0
+            transferred_pct = (transferred_to_wallets / total_distributed * 100) if total_distributed > 0 else 0
+            burned_pct = (burned / total_distributed * 100) if total_distributed > 0 else 0
+
+            logger.info(f"Distribution analysis: {total_distributed:,.0f} tokens distributed ({total_distributed_pct:.1f}% of supply)")
+            logger.info(f"  - Sold via DEX: {sold_via_dex:,.0f} ({sold_via_dex_pct:.1f}%)")
+            logger.info(f"  - Transferred: {transferred_to_wallets:,.0f} ({transferred_pct:.1f}%)")
+            logger.info(f"  - Burned: {burned:,.0f} ({burned_pct:.1f}%)")
+
+            return {
+                "mint_authority": mint_authority,
+                "total_distributed": total_distributed,
+                "total_distributed_pct": total_distributed_pct,
+                "sold_via_dex": sold_via_dex,
+                "sold_via_dex_pct": sold_via_dex_pct,
+                "transferred_to_wallets": transferred_to_wallets,
+                "transferred_to_wallets_pct": transferred_pct,
+                "burned": burned,
+                "burned_pct": burned_pct,
+                "transaction_count": len(distribution_events),
+                "transactions": distribution_events[:50],  # Limit to 50 most recent
+            }
+
+        except Exception as e:
+            logger.error(f"Error analyzing mint distribution: {e}")
+            return self._empty_distribution_result(mint_authority)
+
+    def _empty_distribution_result(self, mint_authority: str) -> Dict[str, Any]:
+        """Return empty distribution result structure."""
+        return {
+            "mint_authority": mint_authority,
+            "total_distributed": 0,
+            "total_distributed_pct": 0,
+            "sold_via_dex": 0,
+            "sold_via_dex_pct": 0,
+            "transferred_to_wallets": 0,
+            "transferred_to_wallets_pct": 0,
+            "burned": 0,
+            "burned_pct": 0,
+            "transaction_count": 0,
+            "transactions": [],
+        }
+
 
 # Singleton instance
 helius_service = HeliusService()
