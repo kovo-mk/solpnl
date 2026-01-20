@@ -57,6 +57,10 @@ class SolscanProAPI:
 
                     markets = data.get("data", [])
 
+                    if not markets:
+                        logger.warning(f"Solscan returned empty markets array for {token_address[:8]}")
+                        logger.debug(f"Full response: {data}")
+
                     # Format the response
                     formatted_pools = []
                     for market in markets:
