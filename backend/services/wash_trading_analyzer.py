@@ -803,13 +803,26 @@ class WashTradingAnalyzer:
 
         # Known DEX programs and liquidity pools to filter out
         KNOWN_DEX_PROGRAMS = {
+            # Raydium DEX
             "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",  # Raydium AMM
             "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",  # Raydium V4
             "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK",  # Raydium CLMM
+
+            # Jupiter Aggregator
             "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB",   # Jupiter
             "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",   # Jupiter V6
+
+            # Orca DEX
             "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",   # Orca Whirlpool
             "9W959DqEETiGZocYWCQPaJ6sBmUzgfxXfqGeTEdp3aQP",   # Orca V2
+
+            # CEX Routers (Hot Wallets)
+            "ARu4n5mFdZogZAravu7CcizaojWnS6oqka37gdLT5SZn",   # OKX Router
+            "AC5RDfQFmDS1deWZos921JfqscXdByf8BKHs5ACWjtW2",   # OKX Hot Wallet
+            "2AQdpHJ2JpcEgPiATUXjQxA8QmafFegfQwSLWSprPicm",   # Coinbase Hot Wallet
+            "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",   # Binance Hot Wallet
+            "GJRs4FwHtemZ5ZE9x3FNvJ8TMwitKTh21yxdRPqn7npE",   # Kraken Hot Wallet
+            "GcWEQ9K78FV7LEHteFVciYApERk5YvQuFDQPk1yYJVXi",   # Phantom Swap
         }
 
         wallet_trades = defaultdict(list)  # wallet -> list of trades
@@ -892,11 +905,13 @@ class WashTradingAnalyzer:
                 wallet_counterparties[from_addr].add(to_addr)
                 wallet_counterparties[to_addr].add(from_addr)
 
-                # Track pairs and their transaction signatures
-                pair = tuple(sorted([from_addr, to_addr]))
-                trade_pairs[pair] += 1
-                if signature:
-                    pair_transactions[pair].append(signature)
+                # Track pairs and their transaction signatures (skip if either is DEX/CEX)
+                # Skip if either wallet is a known DEX/CEX program to avoid false positives
+                if from_addr not in KNOWN_DEX_PROGRAMS and to_addr not in KNOWN_DEX_PROGRAMS:
+                    pair = tuple(sorted([from_addr, to_addr]))
+                    trade_pairs[pair] += 1
+                    if signature:
+                        pair_transactions[pair].append(signature)
 
                 # Track connections for circular trading
                 wallet_connections[from_addr].append((to_addr, timestamp))
@@ -975,7 +990,8 @@ class WashTradingAnalyzer:
         def get_wallet_label(wallet: str) -> str:
             """Get human-readable label for wallet."""
             if wallet in KNOWN_DEX_PROGRAMS:
-                dex_labels = {
+                known_labels = {
+                    # DEX Programs
                     "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8": "Raydium AMM",
                     "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1": "Raydium V4",
                     "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK": "Raydium CLMM",
@@ -983,17 +999,24 @@ class WashTradingAnalyzer:
                     "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4": "Jupiter V6",
                     "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc": "Orca Whirlpool",
                     "9W959DqEETiGZocYWCQPaJ6sBmUzgfxXfqGeTEdp3aQP": "Orca V2",
+                    # CEX Routers/Hot Wallets
+                    "ARu4n5mFdZogZAravu7CcizaojWnS6oqka37gdLT5SZn": "OKX Router",
+                    "AC5RDfQFmDS1deWZos921JfqscXdByf8BKHs5ACWjtW2": "OKX Hot Wallet",
+                    "2AQdpHJ2JpcEgPiATUXjQxA8QmafFegfQwSLWSprPicm": "Coinbase",
+                    "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS": "Binance",
+                    "GJRs4FwHtemZ5ZE9x3FNvJ8TMwitKTh21yxdRPqn7npE": "Kraken",
+                    "GcWEQ9K78FV7LEHteFVciYApERk5YvQuFDQPk1yYJVXi": "Phantom Swap",
                 }
-                return dex_labels.get(wallet, "DEX Program")
+                return known_labels.get(wallet, "DEX/CEX Program")
             return None
 
         # Build suspicious wallet details (exclude DEX programs from display)
         suspicious_wallet_details = []
 
-        # Add wallets involved in repeated pairs (skip if wallet1 is a DEX program)
+        # Add wallets involved in repeated pairs (skip if either wallet is a DEX/CEX program)
         for (wallet1, wallet2), count in suspicious_pairs:
-            # Skip if the primary wallet is a DEX program
-            if wallet1 in KNOWN_DEX_PROGRAMS:
+            # Skip if either wallet is a known DEX/CEX program
+            if wallet1 in KNOWN_DEX_PROGRAMS or wallet2 in KNOWN_DEX_PROGRAMS:
                 continue
 
             label1 = get_wallet_label(wallet1)
