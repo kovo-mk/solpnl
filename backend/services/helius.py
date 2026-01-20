@@ -820,6 +820,60 @@ class HeliusService:
             logger.error(f"Error fetching DexScreener data: {e}")
             return {}
 
+    async def get_dexscreener_pools(self, token_address: str) -> List[Dict]:
+        """
+        Fetch all liquidity pools for a token from DexScreener.
+
+        Returns list of pools similar to Solscan format:
+        [{
+            "dex": "Raydium",
+            "pool_address": "...",
+            "liquidity_usd": 123456.78,
+            "volume_24h": 50000.0,
+            "created_at": "2024-01-01T00:00:00Z"
+        }]
+        """
+        try:
+            url = f"https://api.dexscreener.com/latest/dex/tokens/{token_address}"
+            timeout = aiohttp.ClientTimeout(total=10)
+
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        logger.warning(f"DexScreener pools returned {response.status}")
+                        return []
+
+                    data = await response.json()
+                    pairs = data.get("pairs", [])
+
+                    if not pairs:
+                        return []
+
+                    # Format all pairs as liquidity pools
+                    formatted_pools = []
+                    for pair in pairs:
+                        liquidity = float(pair.get("liquidity", {}).get("usd", 0) or 0)
+
+                        # Only include pools with meaningful liquidity (> $100)
+                        if liquidity < 100:
+                            continue
+
+                        formatted_pools.append({
+                            "dex": pair.get("dexId", "Unknown"),
+                            "pool_address": pair.get("pairAddress"),
+                            "liquidity_usd": liquidity,
+                            "volume_24h": float(pair.get("volume", {}).get("h24", 0) or 0),
+                            "created_at": pair.get("pairCreatedAt"),
+                            "price_usd": float(pair.get("priceUsd", 0) or 0),
+                        })
+
+                    logger.info(f"Found {len(formatted_pools)} DexScreener pools for {token_address[:8]}")
+                    return formatted_pools
+
+        except Exception as e:
+            logger.error(f"Error fetching DexScreener pools: {e}")
+            return []
+
     async def get_birdeye_token_data(self, token_address: str) -> Dict[str, Any]:
         """
         Fetch comprehensive token data from Birdeye API (free tier).

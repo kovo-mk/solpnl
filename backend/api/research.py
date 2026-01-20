@@ -647,13 +647,20 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             try:
                 solscan_client = SolscanProAPI(settings.SOLSCAN_API_KEY, db)
 
-                # Fetch liquidity pools
+                # Fetch liquidity pools from Solscan
                 liquidity_pools = await solscan_client.fetch_token_markets(token_address)
                 if liquidity_pools:
                     liquidity_pools_data = json.dumps(liquidity_pools)
-                    logger.info(f"Fetched {len(liquidity_pools)} liquidity pools")
+                    logger.info(f"Fetched {len(liquidity_pools)} liquidity pools from Solscan")
                 else:
-                    logger.warning(f"No liquidity pools found for {token_address}")
+                    logger.warning(f"No Solscan liquidity pools found, trying DexScreener fallback...")
+                    # Fallback to DexScreener if Solscan has no data
+                    dex_pools = await helius.get_dexscreener_pools(token_address)
+                    if dex_pools:
+                        liquidity_pools_data = json.dumps(dex_pools)
+                        logger.info(f"Fetched {len(dex_pools)} liquidity pools from DexScreener")
+                    else:
+                        logger.warning(f"No liquidity pools found for {token_address} from any source")
 
                 # Fetch whale movements (transfers above $10k)
                 whale_movements = await solscan_client.fetch_whale_movements(token_address, min_amount_usd=10000, limit=50)
