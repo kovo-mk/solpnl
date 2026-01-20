@@ -86,6 +86,10 @@ class TokenReportResponse(BaseModel):
     # Time period breakdowns
     time_periods: Optional[dict] = None
 
+    # Liquidity and whale tracking
+    liquidity_pools: Optional[list] = None
+    whale_movements: Optional[list] = None
+
     # Social/GitHub
     twitter_handle: Optional[str] = None
     twitter_followers: Optional[int] = None
@@ -230,6 +234,8 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
     transaction_breakdown = json.loads(report.transaction_breakdown) if report.transaction_breakdown else None
     pattern_transactions = json.loads(report.pattern_transactions) if report.pattern_transactions else None
     time_periods = json.loads(report.time_periods) if report.time_periods else None
+    liquidity_pools = json.loads(report.liquidity_pools) if report.liquidity_pools else None
+    whale_movements = json.loads(report.whale_movements) if report.whale_movements else None
 
     return TokenReportResponse(
         token_address=report.token_address,
@@ -265,6 +271,9 @@ async def get_analysis_report(report_id: int, db: Session = Depends(get_db)):
         transaction_breakdown=transaction_breakdown,
         pattern_transactions=pattern_transactions,
         time_periods=time_periods,
+        # Liquidity and whale tracking
+        liquidity_pools=liquidity_pools,
+        whale_movements=whale_movements,
         # Other
         red_flags=red_flags,
         suspicious_patterns=suspicious_patterns,
@@ -298,6 +307,8 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
     transaction_breakdown = json.loads(report.transaction_breakdown) if report.transaction_breakdown else None
     pattern_transactions = json.loads(report.pattern_transactions) if report.pattern_transactions else None
     time_periods = json.loads(report.time_periods) if report.time_periods else None
+    liquidity_pools = json.loads(report.liquidity_pools) if report.liquidity_pools else None
+    whale_movements = json.loads(report.whale_movements) if report.whale_movements else None
 
     return TokenReportResponse(
         token_address=report.token_address,
@@ -333,6 +344,9 @@ async def get_latest_report_by_address(token_address: str, db: Session = Depends
         transaction_breakdown=transaction_breakdown,
         pattern_transactions=pattern_transactions,
         time_periods=time_periods,
+        # Liquidity and whale tracking
+        liquidity_pools=liquidity_pools,
+        whale_movements=whale_movements,
         # Other
         red_flags=red_flags,
         suspicious_patterns=suspicious_patterns,
@@ -673,9 +687,13 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
                     logger.warning(f"No whale movements found for {token_address}")
 
                 # Update report with liquidity and whale data (even if None/empty)
+                logger.info(f"📝 BEFORE UPDATE: report.liquidity_pools = {report.liquidity_pools[:100] if report.liquidity_pools else 'None'}")
                 report.liquidity_pools = liquidity_pools_data
                 report.whale_movements = whale_movements_data
+                logger.info(f"📝 AFTER UPDATE: report.liquidity_pools = {report.liquidity_pools[:100] if report.liquidity_pools else 'None'}")
                 db.commit()
+                db.refresh(report)
+                logger.info(f"💾 AFTER COMMIT: report.liquidity_pools = {report.liquidity_pools[:100] if report.liquidity_pools else 'None'}")
 
             except Exception as e:
                 logger.warning(f"Failed to fetch liquidity/whale data from Solscan: {e}")

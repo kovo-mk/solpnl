@@ -13,7 +13,7 @@ from services.scheduler import scheduler
 app = FastAPI(
     title="SolPnL",
     description="Solana Portfolio Profit/Loss Tracker",
-    version="0.1.2"  # DexScreener fallback + Solscan array fix
+    version="0.1.3"  # FIX: Add liquidity_pools & whale_movements to API response
 )
 
 # CORS middleware - more permissive for Vercel preview deployments
