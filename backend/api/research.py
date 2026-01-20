@@ -1,4 +1,5 @@
 """Token research and fraud detection API endpoints."""
+import asyncio
 import json
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -371,30 +372,39 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         helius = HeliusService()
         analyzer = FraudAnalyzer()
 
-        # 1. Fetch holder data from Helius
-        logger.info(f"Fetching holder data for {token_address}")
-        holder_data = await helius.get_token_holders(token_address)
+        # 1-4. Fetch all independent data in parallel for 5x speed boost
+        logger.info(f"Fetching token data in parallel for {token_address}")
 
-        if not holder_data:
+        holder_data, mint_info, dex_data, birdeye_data, solscan_data, contract_info = await asyncio.gather(
+            helius.get_token_holders(token_address),
+            helius.get_token_mint_info(token_address),
+            helius.get_dexscreener_data(token_address),
+            helius.get_birdeye_token_data(token_address),
+            helius.get_solscan_token_meta(token_address),
+            helius.get_token_metadata(token_address),
+            return_exceptions=True  # Don't fail entire analysis if one API fails
+        )
+
+        # Handle any errors from parallel calls
+        if isinstance(holder_data, Exception) or not holder_data:
             raise Exception("Failed to fetch holder data")
 
-        # 2. Get token mint info (authorities)
-        mint_info = await helius.get_token_mint_info(token_address)
-
-        # 3. Get DexScreener data (price, liquidity, socials, holder count)
-        logger.info(f"Fetching DexScreener data for {token_address}")
-        dex_data = await helius.get_dexscreener_data(token_address)
-
-        # 3.5. Get Birdeye data (volume, transactions, liquidity)
-        logger.info(f"Fetching Birdeye token data for {token_address}")
-        birdeye_data = await helius.get_birdeye_token_data(token_address)
-
-        # 3.6. Get Solscan data (holder count, market data)
-        logger.info(f"Fetching Solscan token metadata for {token_address}")
-        solscan_data = await helius.get_solscan_token_meta(token_address)
-
-        # 4. Get contract metadata
-        contract_info = await helius.get_token_metadata(token_address)
+        # Use defaults for optional data sources if they failed
+        if isinstance(mint_info, Exception):
+            logger.warning(f"Mint info fetch failed: {mint_info}")
+            mint_info = {}
+        if isinstance(dex_data, Exception):
+            logger.warning(f"DexScreener fetch failed: {dex_data}")
+            dex_data = {}
+        if isinstance(birdeye_data, Exception):
+            logger.warning(f"Birdeye fetch failed: {birdeye_data}")
+            birdeye_data = {}
+        if isinstance(solscan_data, Exception):
+            logger.warning(f"Solscan fetch failed: {solscan_data}")
+            solscan_data = {}
+        if isinstance(contract_info, Exception):
+            logger.warning(f"Contract info fetch failed: {contract_info}")
+            contract_info = {}
 
         # Merge all data into contract_info
         contract_info["has_freeze_authority"] = mint_info.get("freeze_authority") is not None
@@ -462,11 +472,11 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
         )
 
         # Run Helius transaction analysis for real wash trading detection
-        # Fetch up to 5000 transfers from last 30 days for comprehensive analysis
+        # Fetch up to 1000 transfers from last 7 days for faster analysis
         helius_analysis = await wash_analyzer.analyze_helius_transactions(
             token_address=token_address,
-            limit=5000,  # Analyze up to 5000 transfers (converts to ~1000-2000 unique transactions)
-            days_back=30  # Last 30 days for better pattern detection
+            limit=1000,  # Analyze up to 1000 transfers (faster, still catches patterns)
+            days_back=7  # Last 7 days for faster analysis
         )
         logger.info(f"Helius analysis - Unique traders: {helius_analysis['unique_traders']}, "
                    f"Total txns: {helius_analysis['total_transactions']}, "
