@@ -1,4 +1,4 @@
-"""Helius API service for fetching Solana transaction history."""
+"""Helius API service for fetching Solana transaction history and DexScreener liquidity data."""
 import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
