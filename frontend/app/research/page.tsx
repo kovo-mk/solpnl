@@ -105,8 +105,22 @@ interface TokenReport {
     };
   };
   // Liquidity and whale tracking
-  liquidity_pools?: string | null;  // JSON string
-  whale_movements?: string | null;  // JSON string
+  liquidity_pools?: Array<{
+    dex: string;
+    pool_address: string;
+    liquidity_usd: number;
+    volume_24h?: number;
+    created_at?: number;
+    price_usd?: number;
+  }> | null;
+  whale_movements?: Array<{
+    from: string;
+    to: string;
+    amount: number;
+    amount_usd: number;
+    timestamp: number;
+    tx_hash: string;
+  }> | null;
   // Other
   red_flags: RedFlag[];
   suspicious_patterns: string[];
@@ -175,28 +189,16 @@ export default function ResearchPage() {
   // Parse liquidity pools and whale movements when report loads
   useEffect(() => {
     if (report) {
-      // Parse liquidity pools
-      if (report.liquidity_pools) {
-        try {
-          const pools = JSON.parse(report.liquidity_pools);
-          setLiquidityPools(pools);
-        } catch (e) {
-          console.error('Failed to parse liquidity_pools:', e);
-          setLiquidityPools([]);
-        }
+      // Set liquidity pools (already parsed as array from backend)
+      if (report.liquidity_pools && Array.isArray(report.liquidity_pools)) {
+        setLiquidityPools(report.liquidity_pools);
       } else {
         setLiquidityPools([]);
       }
 
-      // Parse whale movements
-      if (report.whale_movements) {
-        try {
-          const whales = JSON.parse(report.whale_movements);
-          setWhaleMovements(whales);
-        } catch (e) {
-          console.error('Failed to parse whale_movements:', e);
-          setWhaleMovements([]);
-        }
+      // Set whale movements (already parsed as array from backend)
+      if (report.whale_movements && Array.isArray(report.whale_movements)) {
+        setWhaleMovements(report.whale_movements);
       } else {
         setWhaleMovements([]);
       }
