@@ -823,6 +823,14 @@ class WashTradingAnalyzer:
             "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS",   # Binance Hot Wallet
             "GJRs4FwHtemZ5ZE9x3FNvJ8TMwitKTh21yxdRPqn7npE",   # Kraken Hot Wallet
             "GcWEQ9K78FV7LEHteFVciYApERk5YvQuFDQPk1yYJVXi",   # Phantom Swap
+
+            # DeFi Vault Programs (Meteora, Kamino, etc.)
+            "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",    # Meteora Pools Program
+            "A6jB8dabbPkSa3Brfc9p9votViewMQZKgQR7gPP8phLB",    # Meteora Vault Authority
+            "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD",    # Kamino Lending
+            "6LtLpnUFNByNXLyCoK9wA2MykKAmQNZKBdY8s47dehDc",    # Kamino Vault
+            "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD",    # MarginFi
+            "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH",    # Drift Protocol
         }
 
         wallet_trades = defaultdict(list)  # wallet -> list of trades
@@ -1006,8 +1014,15 @@ class WashTradingAnalyzer:
                     "H8sMJSCQxfKiFTCfDR3DUMLPwcRbM61LGFJ8N4dK3WjS": "Binance",
                     "GJRs4FwHtemZ5ZE9x3FNvJ8TMwitKTh21yxdRPqn7npE": "Kraken",
                     "GcWEQ9K78FV7LEHteFVciYApERk5YvQuFDQPk1yYJVXi": "Phantom Swap",
+                    # DeFi Vault Programs
+                    "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo": "Meteora Pools",
+                    "A6jB8dabbPkSa3Brfc9p9votViewMQZKgQR7gPP8phLB": "Meteora Vault",
+                    "KLend2g3cP87fffoy8q1mQqGKjrxjC8boSyAYavgmjD": "Kamino",
+                    "6LtLpnUFNByNXLyCoK9wA2MykKAmQNZKBdY8s47dehDc": "Kamino Vault",
+                    "MarBmsSgKXdrN1egZf5sqe1TMai9K1rChYNDJgjq7aD": "MarginFi",
+                    "dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH": "Drift",
                 }
-                return known_labels.get(wallet, "DEX/CEX Program")
+                return known_labels.get(wallet, "DeFi/CEX/DEX Program")
             return None
 
         # Build suspicious wallet details (exclude DEX programs from display)
