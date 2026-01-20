@@ -572,7 +572,8 @@ async def run_token_analysis(request_id: int, token_address: str, telegram_url: 
             # Wash trading metrics (use combined scores)
             wash_trading_score=combined_wash_score,
             wash_trading_likelihood=wash_trading_likelihood,
-            unique_traders_24h=helius_analysis.get("unique_traders") or market_data.get("unique_wallets_24h"),
+            # Prefer Birdeye's swap-only count, fallback to our transfer-based count
+            unique_traders_24h=market_data.get("unique_wallets_24h") or helius_analysis.get("unique_traders"),
             volume_24h_usd=market_data.get("volume_24h", 0),
             txns_24h_total=helius_analysis.get("total_transactions") or (market_data.get("txns_24h", {}).get("buys", 0) + market_data.get("txns_24h", {}).get("sells", 0)),
             airdrop_likelihood=wash_analysis.get("airdrop_likelihood"),

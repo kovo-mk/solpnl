@@ -836,10 +836,13 @@ export default function ResearchPage() {
                     </div>
                   )}
 
-                  {/* Unique Traders */}
+                  {/* Unique Wallets */}
                   {report.unique_traders_24h !== null && report.unique_traders_24h !== undefined && (
                     <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Unique Traders (24h)</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        Unique Wallets (24h)
+                        <span className="ml-1 text-xs text-gray-500" title="Includes all token transfers, not just swaps">ⓘ</span>
+                      </div>
                       <div className="text-2xl font-bold text-gray-900 dark:text-white">
                         {report.unique_traders_24h}
                       </div>
