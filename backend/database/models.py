@@ -422,11 +422,15 @@ class SolscanTransferCache(Base):
 
 
 class WalletTransactionCache(Base):
-    """Cache for complete wallet transaction history from Helius API."""
+    """Cache for complete wallet transaction history from Helius API.
+
+    Transactions are immutable blockchain data, so we cache permanently.
+    Use continue_fetch parameter to fetch additional older transactions.
+    """
     __tablename__ = "wallet_transaction_cache"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    wallet_address = Column(String(255), nullable=False, index=True)
+    wallet_address = Column(String(255), nullable=False, unique=True, index=True)
 
     # Transaction data (stored as JSON string)
     transactions_json = Column(Text, nullable=False)  # Enhanced Helius transaction data
@@ -438,12 +442,11 @@ class WalletTransactionCache(Base):
 
     # Cache validity
     cached_at = Column(DateTime(timezone=True), server_default=func.now())
-    expires_at = Column(DateTime(timezone=True), nullable=False)  # When to invalidate cache
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_complete = Column(Boolean, default=False)  # True if we fetched all available transactions
 
     __table_args__ = (
         Index('ix_wallet_tx_cache_wallet_cached', 'wallet_address', 'cached_at'),
-        Index('ix_wallet_tx_cache_expires', 'expires_at'),
     )
 
 

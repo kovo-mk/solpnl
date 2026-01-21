@@ -142,6 +142,31 @@ def run_migrations():
                 conn.commit()
                 logger.info("Transaction tracking columns added successfully")
 
+            # Migrate wallet_transaction_cache table: remove expires_at, add updated_at
+            result = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'wallet_transaction_cache' AND column_name = 'expires_at'
+            """))
+            if result.fetchone() is not None:
+                logger.info("Migrating wallet_transaction_cache: removing expires_at, adding updated_at...")
+
+                # Drop expires_at column
+                conn.execute(text("ALTER TABLE wallet_transaction_cache DROP COLUMN IF EXISTS expires_at"))
+
+                # Add updated_at column if it doesn't exist
+                result2 = conn.execute(text("""
+                    SELECT column_name FROM information_schema.columns
+                    WHERE table_name = 'wallet_transaction_cache' AND column_name = 'updated_at'
+                """))
+                if result2.fetchone() is None:
+                    conn.execute(text("ALTER TABLE wallet_transaction_cache ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()"))
+
+                # Drop old expires index
+                conn.execute(text("DROP INDEX IF EXISTS ix_wallet_tx_cache_expires"))
+
+                conn.commit()
+                logger.info("wallet_transaction_cache migration completed")
+
 
 def init_db():
     """Initialize database tables."""

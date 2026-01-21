@@ -1638,17 +1638,19 @@ async def get_wallet_full_history(
 async def fetch_wallet_complete_history(
     wallet_address: str,
     force_refresh: bool = False,
+    continue_fetch: bool = False,
     db: Session = Depends(get_db)
 ):
     """
     Fetch COMPLETE wallet transaction history using Helius Enhanced Transactions API.
 
     Fetches ALL transactions (not just token transfers) with pagination support.
-    Results are cached for 1 hour to reduce API costs.
+    Results are cached permanently (immutable blockchain data).
 
     Args:
         wallet_address: Solana wallet address
-        force_refresh: If true, bypass cache and fetch fresh data
+        force_refresh: If true, clear cache and fetch fresh data from beginning
+        continue_fetch: If true, continue fetching from where we left off (append older transactions)
 
     Returns:
         Complete transaction history with summary stats
@@ -1665,27 +1667,42 @@ async def fetch_wallet_complete_history(
                 detail="Helius API key not configured"
             )
 
-        # Check cache first (unless force_refresh)
-        if not force_refresh:
-            cache_entry = db.query(WalletTransactionCache).filter(
-                WalletTransactionCache.wallet_address == wallet_address,
-                WalletTransactionCache.expires_at > datetime.utcnow()
-            ).first()
+        # Handle force_refresh (clear cache and start fresh)
+        if force_refresh:
+            logger.info(f"Force refresh - clearing cache for {wallet_address[:8]}")
+            db.query(WalletTransactionCache).filter(
+                WalletTransactionCache.wallet_address == wallet_address
+            ).delete()
+            db.commit()
 
-            if cache_entry:
-                logger.info(f"Using cached transactions for {wallet_address[:8]} ({cache_entry.transaction_count} txns)")
-                transactions = json.loads(cache_entry.transactions_json)
+        # Check cache
+        cache_entry = db.query(WalletTransactionCache).filter(
+            WalletTransactionCache.wallet_address == wallet_address
+        ).first()
 
-                # Analyze and return
-                return _analyze_transactions(wallet_address, transactions, from_cache=True)
+        # If we have cache and not continuing, return it
+        if cache_entry and not continue_fetch:
+            logger.info(f"Using cached transactions for {wallet_address[:8]} ({cache_entry.transaction_count} txns)")
+            transactions = json.loads(cache_entry.transactions_json)
+            return _analyze_transactions(wallet_address, transactions, from_cache=True)
 
-        logger.info(f"Fetching complete transaction history for {wallet_address[:8]} using Helius...")
+        # Determine starting point
+        if continue_fetch and cache_entry:
+            # Continue from where we left off
+            cached_transactions = json.loads(cache_entry.transactions_json)
+            logger.info(f"Continuing fetch from {len(cached_transactions)} cached transactions")
+            # Start from the oldest cached transaction
+            before_signature = cached_transactions[-1].get("signature") if cached_transactions else None
+        else:
+            # Start fresh
+            cached_transactions = []
+            before_signature = None
+            logger.info(f"Fetching complete transaction history for {wallet_address[:8]} using Helius...")
 
         helius = HeliusService()
-        all_transactions = []
-        before_signature = None
+        new_transactions = []
         page = 0
-        MAX_PAGES = 100  # Safety limit (10,000 transactions max)
+        MAX_PAGES = 100  # Safety limit (10,000 transactions max per fetch)
 
         timeout = aiohttp.ClientTimeout(total=30)
 
@@ -1711,9 +1728,9 @@ async def fetch_wallet_complete_history(
                     logger.info(f"No more transactions, stopping at page {page}")
                     break
 
-                all_transactions.extend(batch)
+                new_transactions.extend(batch)
                 page += 1
-                logger.info(f"Fetched page {page}: {len(batch)} transactions (total: {len(all_transactions)})")
+                logger.info(f"Fetched page {page}: {len(batch)} transactions (total new: {len(new_transactions)})")
 
                 # Pagination: use last transaction signature as cursor
                 if len(batch) < 100:
@@ -1726,48 +1743,49 @@ async def fetch_wallet_complete_history(
                 # Rate limiting
                 await asyncio.sleep(0.3)
 
-        logger.info(f"Fetched {len(all_transactions)} total transactions across {page} pages")
+        logger.info(f"Fetched {len(new_transactions)} new transactions across {page} pages")
 
-        # Save to cache (expires in 1 hour)
+        # Merge with cached transactions (new transactions are OLDER, so they go at the end)
+        all_transactions = cached_transactions + new_transactions
+
+        # Save to cache (permanent storage)
         if all_transactions:
             transactions_json = json.dumps(all_transactions)
 
-            # Check if entry exists
-            existing_cache = db.query(WalletTransactionCache).filter(
-                WalletTransactionCache.wallet_address == wallet_address
-            ).first()
+            # Calculate timestamps
+            timestamps = [tx.get("timestamp") for tx in all_transactions if tx.get("timestamp")]
+            earliest_ts = min(timestamps) if timestamps else None
+            latest_ts = max(timestamps) if timestamps else None
 
-            if existing_cache:
+            # Check if we hit the page limit (incomplete fetch)
+            is_complete = (page < MAX_PAGES and len(new_transactions) > 0 and len(new_transactions) % 100 != 0) or len(new_transactions) == 0
+
+            if cache_entry:
                 # Update existing
-                existing_cache.transactions_json = transactions_json
-                existing_cache.transaction_count = len(all_transactions)
-                existing_cache.cached_at = datetime.utcnow()
-                existing_cache.expires_at = datetime.utcnow() + timedelta(hours=1)
-                existing_cache.is_complete = (page < MAX_PAGES and len(all_transactions[-1] if all_transactions else []) < 100)
-
-                # Update timestamps
-                timestamps = [tx.get("timestamp") for tx in all_transactions if tx.get("timestamp")]
-                if timestamps:
-                    existing_cache.earliest_timestamp = min(timestamps)
-                    existing_cache.latest_timestamp = max(timestamps)
+                cache_entry.transactions_json = transactions_json
+                cache_entry.transaction_count = len(all_transactions)
+                cache_entry.cached_at = datetime.utcnow()
+                cache_entry.earliest_timestamp = earliest_ts
+                cache_entry.latest_timestamp = latest_ts
+                cache_entry.is_complete = is_complete
+                logger.info(f"Updated cache: {len(all_transactions)} total transactions ({len(new_transactions)} newly added)")
             else:
                 # Create new
-                timestamps = [tx.get("timestamp") for tx in all_transactions if tx.get("timestamp")]
                 new_cache = WalletTransactionCache(
                     wallet_address=wallet_address,
                     transactions_json=transactions_json,
                     transaction_count=len(all_transactions),
-                    earliest_timestamp=min(timestamps) if timestamps else None,
-                    latest_timestamp=max(timestamps) if timestamps else None,
-                    expires_at=datetime.utcnow() + timedelta(hours=1),
-                    is_complete=(page < MAX_PAGES)
+                    earliest_timestamp=earliest_ts,
+                    latest_timestamp=latest_ts,
+                    cached_at=datetime.utcnow(),
+                    is_complete=is_complete
                 )
                 db.add(new_cache)
+                logger.info(f"Created cache: {len(all_transactions)} transactions")
 
             db.commit()
-            logger.info(f"Saved {len(all_transactions)} transactions to cache for {wallet_address[:8]}")
 
-        return _analyze_transactions(wallet_address, all_transactions, from_cache=False)
+        return _analyze_transactions(wallet_address, all_transactions, from_cache=False, newly_fetched=len(new_transactions))
 
     except HTTPException:
         raise
@@ -1776,7 +1794,7 @@ async def fetch_wallet_complete_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _analyze_transactions(wallet_address: str, transactions: list, from_cache: bool = False) -> dict:
+def _analyze_transactions(wallet_address: str, transactions: list, from_cache: bool = False, newly_fetched: int = 0) -> dict:
     """Analyze transaction list and return summary statistics."""
     token_mints_seen = set()
     tx_types = {}
@@ -1804,6 +1822,7 @@ def _analyze_transactions(wallet_address: str, transactions: list, from_cache: b
     return {
         "wallet_address": wallet_address,
         "total_transactions": len(transactions),
+        "newly_fetched": newly_fetched,
         "token_transfers": token_transfer_count,
         "unique_tokens": len(token_mints_seen),
         "transaction_types": tx_types,
