@@ -2006,7 +2006,7 @@ async def get_wallet_transactions_detailed(wallet_address: str, db: Session = De
         
         # Convert to list format with summary stats
         tokens_summary = []
-        
+
         # Add SOL first if it has activity
         if any(sol_data.values()):
             tokens_summary.append({
@@ -2022,12 +2022,25 @@ async def get_wallet_transactions_detailed(wallet_address: str, db: Session = De
                 "transfers_out": sol_data["transfers_out"][:100],
                 "transfers_in": sol_data["transfers_in"][:100]
             })
-        
-        # Add other tokens
+
+        # Add other tokens with metadata lookup
+        from database.models import Token
         for mint, data in token_data.items():
+            # Look up token metadata from database
+            token_metadata = db.query(Token).filter(Token.address == mint).first()
+
+            if token_metadata:
+                symbol = token_metadata.symbol or (mint[:8] + "...")
+                name = token_metadata.name
+            else:
+                # Fallback to shortened mint address
+                symbol = mint[:8] + "..."
+                name = None
+
             tokens_summary.append({
                 "mint": mint,
-                "symbol": mint[:8] + "...",
+                "symbol": symbol,
+                "name": name,
                 "buy_count": len(data["buys"]),
                 "sell_count": len(data["sells"]),
                 "transfer_out_count": len(data["transfers_out"]),
