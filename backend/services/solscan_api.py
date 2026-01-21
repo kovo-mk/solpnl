@@ -344,7 +344,12 @@ class SolscanProAPI:
                 logger.info(f"✓ No new transfers to cache (using {len(all_transfers)} from cache)")
 
             # Convert to Helius-compatible format
-            transactions = self._convert_to_helius_format(all_transfers, token_address)
+            # IMPORTANT: Only convert what we need to avoid O(n²) complexity on large caches
+            # Take most recent transfers first (already sorted desc by Solscan API)
+            transfers_to_convert = all_transfers[:min(limit * 2, len(all_transfers))]  # Get 2x limit for grouping
+            logger.info(f"Converting {len(transfers_to_convert)} transfers to Helius format (from {len(all_transfers)} total)")
+
+            transactions = self._convert_to_helius_format(transfers_to_convert, token_address)
 
             return transactions[:limit]
 
