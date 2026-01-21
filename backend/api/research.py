@@ -915,14 +915,13 @@ async def get_creator_distribution(token_address: str):
         # Get token metadata to find creator
         helius = get_helius_service()
 
-        # First get the creator address from Solscan
-        token_meta = await helius.get_solscan_token_meta(token_address)
-        creator_address = token_meta.get("creator")
+        # Get the creator address from token metadata using Helius DAS API
+        creator_address = await helius.get_token_creator(token_address)
 
         if not creator_address:
             return {
                 "error": "Creator address not found",
-                "message": "Unable to identify the token creator for this token"
+                "message": "Unable to identify the token creator for this token. The token may not have metadata or the creator information is not available."
             }
 
         # Get token info for supply

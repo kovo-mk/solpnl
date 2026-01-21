@@ -699,6 +699,108 @@ class HeliusService:
             logger.error(f"Error fetching token holders: {e}")
             return []
 
+    async def get_token_creator(self, token_mint: str) -> str:
+        """
+        Get the creator by finding the wallet that created the mint account.
+
+        This looks at the token's transaction history to find who initialized it.
+
+        Args:
+            token_mint: Token mint address
+
+        Returns:
+            Creator address or None if not found
+        """
+        try:
+            # Get signature list for the mint address (oldest first to find creation tx)
+            url = f"{self.rpc_url}"
+
+            # Get the oldest transactions (where the mint was created)
+            payload = {
+                "jsonrpc": "2.0",
+                "id": "get-signatures",
+                "method": "getSignaturesForAddress",
+                "params": [
+                    token_mint,
+                    {
+                        "limit": 1000  # Get up to 1000 oldest transactions
+                    }
+                ]
+            }
+
+            timeout = aiohttp.ClientTimeout(total=15)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload) as response:
+                    if response.status != 200:
+                        logger.warning(f"Failed to fetch signatures: {response.status}")
+                        return None
+
+                    data = await response.json()
+
+                    if "error" in data:
+                        logger.warning(f"RPC error fetching signatures: {data.get('error')}")
+                        return None
+
+                    signatures = data.get("result", [])
+
+                    if not signatures:
+                        logger.warning(f"No transaction signatures found for {token_mint}")
+                        return None
+
+                    # The last signature in the list is the oldest (creation transaction)
+                    oldest_signature = signatures[-1].get("signature")
+
+                    if not oldest_signature:
+                        return None
+
+                    # Get the full transaction to find who created the mint
+                    tx_payload = {
+                        "jsonrpc": "2.0",
+                        "id": "get-transaction",
+                        "method": "getTransaction",
+                        "params": [
+                            oldest_signature,
+                            {
+                                "encoding": "jsonParsed",
+                                "maxSupportedTransactionVersion": 0
+                            }
+                        ]
+                    }
+
+                    async with session.post(url, json=tx_payload) as tx_response:
+                        if tx_response.status != 200:
+                            logger.warning(f"Failed to fetch transaction: {tx_response.status}")
+                            return None
+
+                        tx_data = await tx_response.json()
+
+                        if "error" in tx_data:
+                            logger.warning(f"RPC error fetching transaction: {tx_data.get('error')}")
+                            return None
+
+                        result = tx_data.get("result", {})
+                        transaction = result.get("transaction", {})
+                        message = transaction.get("message", {})
+                        account_keys = message.get("accountKeys", [])
+
+                        # The fee payer (first account) is usually the creator
+                        if account_keys and len(account_keys) > 0:
+                            fee_payer = account_keys[0]
+                            if isinstance(fee_payer, dict):
+                                creator = fee_payer.get("pubkey")
+                            else:
+                                creator = fee_payer
+
+                            logger.info(f"Found creator for {token_mint[:8]}: {creator[:8] if creator else 'None'}")
+                            return creator
+
+                        logger.warning(f"No account keys found in creation transaction")
+                        return None
+
+        except Exception as e:
+            logger.error(f"Error fetching token creator: {e}")
+            return None
+
     async def get_token_mint_info(self, token_mint: str) -> Dict[str, Any]:
         """
         Fetch token mint information including freeze and mint authorities.
