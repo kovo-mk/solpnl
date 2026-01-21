@@ -323,15 +323,23 @@ class SolscanProAPI:
 
             # Merge new transfers with cached data (if any)
             new_transfer_count = len(all_transfers)
+            had_cached_data = bool(cached_data)
             if cached_data:
                 logger.info(f"Merging {len(all_transfers)} new transfers with {len(cached_data)} cached transfers")
                 all_transfers = cached_data + all_transfers
                 logger.info(f"Total transfers after merge: {len(all_transfers)}")
 
-            # Save to cache ONLY if we fetched NEW transfers (not just using cache)
-            if self.db and new_transfer_count > 0:
+            # Save to cache ONLY if:
+            # 1. No cached data exists (first time) OR
+            # 2. We fetched 100+ new transfers (significant update worth saving)
+            # Skip save for small incremental updates (< 100 transfers) to avoid expensive DB writes
+            should_save = not had_cached_data or new_transfer_count >= 100
+
+            if self.db and should_save and new_transfer_count > 0:
                 self._save_to_cache(token_address, all_transfers, days_back, is_complete=(len(all_transfers) < limit))
                 logger.info(f"✓ Saved {len(all_transfers)} total transfers to cache for {token_address[:8]}")
+            elif self.db and not should_save and new_transfer_count > 0:
+                logger.info(f"✓ Skipped cache save for {new_transfer_count} new transfers (threshold: 100+, using {len(all_transfers)} from cache)")
             elif self.db and new_transfer_count == 0:
                 logger.info(f"✓ No new transfers to cache (using {len(all_transfers)} from cache)")
 
