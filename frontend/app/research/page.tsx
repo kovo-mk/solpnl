@@ -139,6 +139,7 @@ interface TokenReport {
 export default function ResearchPage() {
   const [tokenAddress, setTokenAddress] = useState('');
   const [twitterHandle, setTwitterHandle] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [walletAddress, setWalletAddress] = useState('');
   const [telegramUrl, setTelegramUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -170,7 +171,7 @@ export default function ResearchPage() {
   const [walletAnalysisData, setWalletAnalysisData] = useState<any>(null);
   const [loadingWalletAnalysis, setLoadingWalletAnalysis] = useState(false);
 
-  // Initialize theme from localStorage
+  // Initialize theme and recent searches from localStorage
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -179,7 +180,25 @@ export default function ResearchPage() {
     if (shouldBeDark) {
       document.documentElement.classList.add('dark');
     }
+
+    // Load recent searches
+    const saved = localStorage.getItem('recentTokenSearches');
+    if (saved) {
+      try {
+        setRecentSearches(JSON.parse(saved));
+      } catch (e) {
+        console.error('Failed to load recent searches:', e);
+      }
+    }
   }, []);
+
+  // Save search to history
+  const saveToHistory = (address: string) => {
+    if (!address) return;
+    const updated = [address, ...recentSearches.filter(a => a !== address)].slice(0, 10); // Keep last 10
+    setRecentSearches(updated);
+    localStorage.setItem('recentTokenSearches', JSON.stringify(updated));
+  };
 
   // Toggle theme
   const toggleTheme = () => {
@@ -294,6 +313,11 @@ export default function ResearchPage() {
           const reportData = await reportRes.json();
           console.log(`[DEBUG] Report fetched successfully:`, reportData);
           setReport(reportData);
+
+          // Save to search history
+          if (reportData.token_address) {
+            saveToHistory(reportData.token_address);
+          }
 
           // Fetch related tokens in the background
           if (reportData.token_address) {
@@ -572,6 +596,26 @@ export default function ResearchPage() {
                 className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
                 disabled={loading}
               />
+              {recentSearches.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Recent searches:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {recentSearches.slice(0, 5).map((addr, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setTokenAddress(addr);
+                          analyzeToken();
+                        }}
+                        className="px-3 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors font-mono"
+                      >
+                        {addr.slice(0, 6)}...{addr.slice(-4)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Twitter Handle Input */}
