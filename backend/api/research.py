@@ -1667,7 +1667,8 @@ async def fetch_wallet_complete_history(
         helius = HeliusService()
 
         # Use Helius RPC getTransactionsForAddress with tokenAccounts filter
-        # This gets ALL transactions that reference the wallet or its token accounts
+        # transactionDetails: "full" returns complete transaction objects, not just signatures
+        # tokenAccounts: "balanceChanged" filters spam and returns actual token transfers
         payload = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -1675,8 +1676,9 @@ async def fetch_wallet_complete_history(
             "params": [
                 wallet_address,
                 {
+                    "transactionDetails": "full",  # Get full transaction objects
                     "filters": {
-                        "tokenAccounts": "all"  # Include all token account transactions
+                        "tokenAccounts": "balanceChanged"  # Only balance-changing token transfers (filters spam)
                     },
                     "sortOrder": "asc",
                     "limit": limit
