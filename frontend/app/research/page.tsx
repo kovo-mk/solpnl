@@ -1969,7 +1969,7 @@ export default function ResearchPage() {
                         <li>• <strong>Burned</strong>: Permanently removed from circulation</li>
                       </ul>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
             </div>
