@@ -871,7 +871,7 @@ async def get_mint_distribution(token_address: str):
                 "message": "This token does not have a mint authority (authority may have been revoked)"
             }
 
-        total_supply = token_info.get("supply", 0)
+        total_supply = int(token_info.get("supply", 0))
         decimals = token_info.get("decimals", 9)
 
         # Adjust supply for decimals
@@ -929,7 +929,7 @@ async def get_creator_distribution(token_address: str):
         if not token_info:
             raise HTTPException(status_code=404, detail="Token not found")
 
-        total_supply = token_info.get("supply", 0)
+        total_supply = int(token_info.get("supply", 0))
         decimals = token_info.get("decimals", 9)
 
         # Adjust supply for decimals
