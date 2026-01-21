@@ -902,145 +902,75 @@ async def get_mint_distribution(token_address: str):
 @router.get("/token-initial-transfers/{token_address}")
 async def get_token_initial_transfers(token_address: str, limit: int = 10):
     """
-    Get the ACTUAL first N token transfers from blockchain history.
+    Get the ACTUAL first N token transfers using Solscan API.
 
-    Paginates backwards through all signatures to find the very first transactions,
-    not just recent ones from our database cache.
+    Uses sort_by=block_time with sort_order=asc to get oldest transfers first.
+    Much faster than blockchain pagination.
     """
     try:
-        helius = get_helius_service()
-        url = f"{helius.rpc_url}"
+        # Use Solscan Pro API - it can sort by block_time ascending!
+        solscan_url = "https://pro-api.solscan.io/v2.0/token/transfer"
 
-        timeout = aiohttp.ClientTimeout(total=60)
+        params = {
+            "address": token_address,
+            "page": 1,
+            "page_size": min(limit * 2, 50),  # Get more than requested to account for duplicates
+            "sort_by": "block_time",
+            "sort_order": "asc"  # OLDEST FIRST!
+        }
+
+        headers = {"token": settings.SOLSCAN_API_KEY}
+
+        timeout = aiohttp.ClientTimeout(total=15)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            # Paginate backwards to find the oldest signatures
-            # For performance, limit to 3 pages (3000 signatures max)
-            all_signatures = []
-            before_signature = None
-            max_pages = 3
+            async with session.get(solscan_url, params=params, headers=headers) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.error(f"Solscan API error: {response.status} - {error_text}")
+                    raise HTTPException(status_code=500, detail=f"Solscan API returned {response.status}")
 
-            logger.info(f"Fetching oldest signatures for {token_address[:8]}...")
+                data = await response.json()
 
-            for page in range(max_pages):
-                payload = {
-                    "jsonrpc": "2.0",
-                    "id": f"get-signatures-{page}",
-                    "method": "getSignaturesForAddress",
-                    "params": [
-                        token_address,
-                        {
-                            "limit": 1000,
-                            **({"before": before_signature} if before_signature else {})
-                        }
-                    ]
-                }
+                if not data.get("success"):
+                    logger.error(f"Solscan request failed: {data}")
+                    raise HTTPException(status_code=500, detail="Solscan request failed")
 
-                async with session.post(url, json=payload) as response:
-                    if response.status != 200:
-                        logger.warning(f"Failed to fetch page {page + 1}")
-                        break
+                transfer_data = data.get("data", [])
+                logger.info(f"Fetched {len(transfer_data)} oldest transfers for {token_address[:8]}")
 
-                    data = await response.json()
-                    if "error" in data:
-                        logger.warning(f"RPC error on page {page + 1}: {data.get('error')}")
-                        break
-
-                    signatures = data.get("result", [])
-                    if not signatures:
-                        break
-
-                    all_signatures.extend(signatures)
-                    before_signature = signatures[-1]["signature"]
-
-                    logger.info(f"Page {page + 1}: Fetched {len(signatures)} signatures, total: {len(all_signatures)}")
-
-                    # If we got less than 1000, we've reached the beginning
-                    if len(signatures) < 1000:
-                        logger.info(f"Reached the beginning - found {len(all_signatures)} total signatures")
-                        break
-
-            # If we have signatures, get the oldest ones
-            if all_signatures:
-                oldest_signatures = [sig["signature"] for sig in all_signatures[-min(limit, len(all_signatures)):]]
-                logger.info(f"Analyzing {len(oldest_signatures)} oldest transactions from {len(all_signatures)} total")
-            else:
-                # Fallback: just use the first batch if pagination failed
-                logger.warning("Pagination failed, using most recent signatures as fallback")
-                payload = {
-                    "jsonrpc": "2.0",
-                    "id": "get-signatures-fallback",
-                    "method": "getSignaturesForAddress",
-                    "params": [token_address, {"limit": limit}]
-                }
-                async with session.post(url, json=payload) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        signatures = data.get("result", [])
-                        oldest_signatures = [sig["signature"] for sig in signatures]
-                    else:
-                        raise HTTPException(status_code=500, detail="Failed to fetch signatures")
-
-                # Fetch transaction details for each signature
+                # Convert to our format
                 transfers = []
-                for sig in oldest_signatures:
-                    tx_payload = {
-                        "jsonrpc": "2.0",
-                        "id": "get-tx",
-                        "method": "getTransaction",
-                        "params": [
-                            sig,
-                            {
-                                "encoding": "jsonParsed",
-                                "maxSupportedTransactionVersion": 0
-                            }
-                        ]
-                    }
+                for transfer in transfer_data:
+                    from_addr = transfer.get("from_address")
+                    to_addr = transfer.get("to_address")
+                    amount = float(transfer.get("amount", 0))
+                    decimals = transfer.get("decimals", 9)
+                    adjusted_amount = amount / (10 ** decimals)
+                    block_time = transfer.get("block_time")
+                    signature = transfer.get("trans_id")
 
-                    async with session.post(url, json=tx_payload) as tx_response:
-                        if tx_response.status == 200:
-                            tx_data = await tx_response.json()
-                            result = tx_data.get("result", {})
+                    # Add both sender (negative) and receiver (positive)
+                    if from_addr:
+                        transfers.append({
+                            "signature": signature,
+                            "timestamp": block_time,
+                            "account": from_addr,
+                            "change": -adjusted_amount,
+                            "post_balance": None
+                        })
 
-                            if result:
-                                # Extract token transfers from this transaction
-                                meta = result.get("meta", {})
-                                pre_token_balances = meta.get("preTokenBalances", [])
-                                post_token_balances = meta.get("postTokenBalances", [])
-
-                                # Find balance changes
-                                for post in post_token_balances:
-                                    if post.get("mint") == token_address:
-                                        account_index = post.get("accountIndex")
-                                        post_amount = float(post.get("uiTokenAmount", {}).get("uiAmount", 0))
-
-                                        # Find corresponding pre balance
-                                        pre_amount = 0
-                                        for pre in pre_token_balances:
-                                            if pre.get("accountIndex") == account_index:
-                                                pre_amount = float(pre.get("uiTokenAmount", {}).get("uiAmount", 0))
-                                                break
-
-                                        change = post_amount - pre_amount
-
-                                        if abs(change) > 0:
-                                            # Get the account address
-                                            account_keys = result.get("transaction", {}).get("message", {}).get("accountKeys", [])
-                                            account_address = None
-                                            if account_index < len(account_keys):
-                                                acc = account_keys[account_index]
-                                                account_address = acc.get("pubkey") if isinstance(acc, dict) else acc
-
-                                            transfers.append({
-                                                "signature": sig,
-                                                "timestamp": result.get("blockTime"),
-                                                "account": account_address,
-                                                "change": change,
-                                                "post_balance": post_amount
-                                            })
+                    if to_addr:
+                        transfers.append({
+                            "signature": signature,
+                            "timestamp": block_time,
+                            "account": to_addr,
+                            "change": adjusted_amount,
+                            "post_balance": None
+                        })
 
                 return {
                     "token_address": token_address,
-                    "transfers": transfers[:limit]
+                    "transfers": transfers[:limit * 2]
                 }
 
     except HTTPException:
