@@ -2007,10 +2007,33 @@ async def get_wallet_transactions_detailed(wallet_address: str, db: Session = De
         # Convert to list format with summary stats
         tokens_summary = []
 
+        # Get P&L data from portfolio if wallet is tracked
+        from database.models import Token, TrackedWallet, WalletTokenHolding
+        pnl_data = {}
+        tracked_wallet = db.query(TrackedWallet).filter(TrackedWallet.address == wallet_address).first()
+        if tracked_wallet:
+            holdings = db.query(WalletTokenHolding).filter(
+                WalletTokenHolding.wallet_id == tracked_wallet.id
+            ).all()
+            for holding in holdings:
+                token = db.query(Token).filter(Token.id == holding.token_id).first()
+                if token:
+                    pnl_data[token.address] = {
+                        "realized_pnl_sol": holding.realized_pnl_sol or 0,
+                        "realized_pnl_usd": holding.realized_pnl_usd or 0,
+                        "unrealized_pnl_sol": holding.unrealized_pnl_sol or 0,
+                        "unrealized_pnl_usd": holding.unrealized_pnl_usd or 0,
+                        "current_balance": holding.current_balance or 0,
+                        "avg_buy_price_sol": holding.avg_buy_price_sol or 0,
+                        "total_cost_sol": holding.total_cost_sol or 0,
+                    }
+
         # Add SOL first if it has activity
+        sol_mint = "So11111111111111111111111111111111111111112"
         if any(sol_data.values()):
+            sol_pnl = pnl_data.get(sol_mint, {})
             tokens_summary.append({
-                "mint": "So11111111111111111111111111111111111111112",
+                "mint": sol_mint,
                 "symbol": "SOL",
                 "name": "Solana",
                 "buy_count": len(sol_data["buys"]),
@@ -2020,11 +2043,18 @@ async def get_wallet_transactions_detailed(wallet_address: str, db: Session = De
                 "buys": sol_data["buys"][:100],
                 "sells": sol_data["sells"][:100],
                 "transfers_out": sol_data["transfers_out"][:100],
-                "transfers_in": sol_data["transfers_in"][:100]
+                "transfers_in": sol_data["transfers_in"][:100],
+                # P&L data
+                "realized_pnl_sol": sol_pnl.get("realized_pnl_sol", 0),
+                "realized_pnl_usd": sol_pnl.get("realized_pnl_usd", 0),
+                "unrealized_pnl_sol": sol_pnl.get("unrealized_pnl_sol", 0),
+                "unrealized_pnl_usd": sol_pnl.get("unrealized_pnl_usd", 0),
+                "current_balance": sol_pnl.get("current_balance", 0),
+                "avg_buy_price_sol": sol_pnl.get("avg_buy_price_sol", 0),
+                "total_cost_sol": sol_pnl.get("total_cost_sol", 0),
             })
 
         # Add other tokens with metadata lookup
-        from database.models import Token
         for mint, data in token_data.items():
             # Look up token metadata from database
             token_metadata = db.query(Token).filter(Token.address == mint).first()
@@ -2037,6 +2067,9 @@ async def get_wallet_transactions_detailed(wallet_address: str, db: Session = De
                 symbol = mint[:8] + "..."
                 name = None
 
+            # Get P&L data if available
+            pnl = pnl_data.get(mint, {})
+
             tokens_summary.append({
                 "mint": mint,
                 "symbol": symbol,
@@ -2048,7 +2081,15 @@ async def get_wallet_transactions_detailed(wallet_address: str, db: Session = De
                 "buys": data["buys"][:100],
                 "sells": data["sells"][:100],
                 "transfers_out": data["transfers_out"][:100],
-                "transfers_in": data["transfers_in"][:100]
+                "transfers_in": data["transfers_in"][:100],
+                # P&L data
+                "realized_pnl_sol": pnl.get("realized_pnl_sol", 0),
+                "realized_pnl_usd": pnl.get("realized_pnl_usd", 0),
+                "unrealized_pnl_sol": pnl.get("unrealized_pnl_sol", 0),
+                "unrealized_pnl_usd": pnl.get("unrealized_pnl_usd", 0),
+                "current_balance": pnl.get("current_balance", 0),
+                "avg_buy_price_sol": pnl.get("avg_buy_price_sol", 0),
+                "total_cost_sol": pnl.get("total_cost_sol", 0),
             })
         
         # Sort by total activity

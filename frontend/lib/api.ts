@@ -331,6 +331,14 @@ export interface TokenTransactionGroup {
   sells: TokenTransaction[];
   transfers_out: TokenTransaction[];
   transfers_in: TokenTransaction[];
+  // P&L data
+  realized_pnl_sol: number;
+  realized_pnl_usd: number;
+  unrealized_pnl_sol: number;
+  unrealized_pnl_usd: number;
+  current_balance: number;
+  avg_buy_price_sol: number;
+  total_cost_sol: number;
 }
 
 export interface WalletTransactionHistory {

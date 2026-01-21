@@ -171,9 +171,19 @@ export default function TransactionsPage() {
     );
   };
 
+  const formatPnL = (value: number, prefix: string = '$') => {
+    if (value === 0) return '-';
+    const formatted = Math.abs(value) >= 1000
+      ? `${prefix}${(Math.abs(value) / 1000).toFixed(2)}K`
+      : `${prefix}${Math.abs(value).toFixed(2)}`;
+    return value >= 0 ? `+${formatted}` : `-${formatted}`;
+  };
+
   const TokenCard = ({ token }: { token: TokenTransactionGroup }) => {
     const isExpanded = expandedToken === token.mint;
     const totalActivity = token.buy_count + token.sell_count + token.transfer_out_count + token.transfer_in_count;
+    const totalPnL = (token.realized_pnl_usd || 0) + (token.unrealized_pnl_usd || 0);
+    const hasPnL = token.realized_pnl_sol !== 0 || token.unrealized_pnl_sol !== 0;
 
     return (
       <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden transition-colors">
@@ -181,19 +191,47 @@ export default function TransactionsPage() {
           onClick={() => setExpandedToken(isExpanded ? null : token.mint)}
           className="w-full p-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors text-left"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
                 <span className="text-xs font-bold text-gray-600 dark:text-gray-400">
                   {token.symbol.slice(0, 2)}
                 </span>
               </div>
-              <div>
-                <h3 className="font-bold text-gray-900 dark:text-white">{token.symbol}</h3>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-gray-900 dark:text-white truncate">{token.symbol}</h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{totalActivity} transactions</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+
+            {/* P&L Summary (Desktop) */}
+            <div className="hidden lg:flex items-center gap-6 flex-shrink-0">
+              {hasPnL && (
+                <>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Realized</p>
+                    <p className={cn('text-sm font-medium', token.realized_pnl_sol > 0 ? 'text-green-600 dark:text-green-400' : token.realized_pnl_sol < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400')}>
+                      {formatPnL(token.realized_pnl_sol, '')} SOL
+                    </p>
+                    {token.realized_pnl_usd !== 0 && (
+                      <p className={cn('text-xs', token.realized_pnl_usd > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')}>
+                        {formatPnL(token.realized_pnl_usd)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Unrealized</p>
+                    <p className={cn('text-sm font-medium', token.unrealized_pnl_sol > 0 ? 'text-green-600 dark:text-green-400' : token.unrealized_pnl_sol < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400')}>
+                      {formatPnL(token.unrealized_pnl_sol, '')} SOL
+                    </p>
+                    {token.unrealized_pnl_usd !== 0 && (
+                      <p className={cn('text-xs', token.unrealized_pnl_usd > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')}>
+                        {formatPnL(token.unrealized_pnl_usd)}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
               <div className="text-right hidden sm:block">
                 <div className="flex gap-3 text-sm">
                   {token.buy_count > 0 && (
@@ -210,8 +248,19 @@ export default function TransactionsPage() {
                   )}
                 </div>
               </div>
-              <History className={cn('w-5 h-5 text-gray-400 transition-transform', isExpanded && 'rotate-180')} />
             </div>
+
+            {/* Mobile P&L */}
+            {hasPnL && (
+              <div className="lg:hidden text-right flex-shrink-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Total P&L</p>
+                <p className={cn('text-sm font-medium', totalPnL > 0 ? 'text-green-600 dark:text-green-400' : totalPnL < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400')}>
+                  {formatPnL(totalPnL)}
+                </p>
+              </div>
+            )}
+
+            <History className={cn('w-5 h-5 text-gray-400 transition-transform flex-shrink-0', isExpanded && 'rotate-180')} />
           </div>
         </button>
 
