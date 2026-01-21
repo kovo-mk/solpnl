@@ -1,6 +1,7 @@
 """Token research and fraud detection API endpoints."""
 import asyncio
 import json
+import aiohttp
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
@@ -895,6 +896,117 @@ async def get_mint_distribution(token_address: str):
         raise
     except Exception as e:
         logger.error(f"Error analyzing mint distribution: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/token-initial-transfers/{token_address}")
+async def get_token_initial_transfers(token_address: str, limit: int = 10):
+    """
+    Get the first N token transfers to see where tokens initially went.
+
+    Useful for understanding initial token distribution when creator wallet
+    shows 0 transfers (tokens may have been allocated during mint).
+    """
+    try:
+        helius = get_helius_service()
+
+        # Get the oldest signatures for this token mint
+        url = f"{helius.rpc_url}"
+
+        payload = {
+            "jsonrpc": "2.0",
+            "id": "get-signatures",
+            "method": "getSignaturesForAddress",
+            "params": [
+                token_address,
+                {
+                    "limit": 1000
+                }
+            ]
+        }
+
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(url, json=payload) as response:
+                if response.status != 200:
+                    raise HTTPException(status_code=500, detail="Failed to fetch signatures")
+
+                data = await response.json()
+                if "error" in data:
+                    raise HTTPException(status_code=500, detail=data["error"])
+
+                signatures = data.get("result", [])
+
+                # Get the oldest signatures (last in the list)
+                oldest_signatures = [sig["signature"] for sig in signatures[-limit:]]
+
+                # Fetch transaction details for each signature
+                transfers = []
+                for sig in oldest_signatures:
+                    tx_payload = {
+                        "jsonrpc": "2.0",
+                        "id": "get-tx",
+                        "method": "getTransaction",
+                        "params": [
+                            sig,
+                            {
+                                "encoding": "jsonParsed",
+                                "maxSupportedTransactionVersion": 0
+                            }
+                        ]
+                    }
+
+                    async with session.post(url, json=tx_payload) as tx_response:
+                        if tx_response.status == 200:
+                            tx_data = await tx_response.json()
+                            result = tx_data.get("result", {})
+
+                            if result:
+                                # Extract token transfers from this transaction
+                                meta = result.get("meta", {})
+                                pre_token_balances = meta.get("preTokenBalances", [])
+                                post_token_balances = meta.get("postTokenBalances", [])
+
+                                # Find balance changes
+                                for post in post_token_balances:
+                                    if post.get("mint") == token_address:
+                                        account_index = post.get("accountIndex")
+                                        post_amount = float(post.get("uiTokenAmount", {}).get("uiAmount", 0))
+
+                                        # Find corresponding pre balance
+                                        pre_amount = 0
+                                        for pre in pre_token_balances:
+                                            if pre.get("accountIndex") == account_index:
+                                                pre_amount = float(pre.get("uiTokenAmount", {}).get("uiAmount", 0))
+                                                break
+
+                                        change = post_amount - pre_amount
+
+                                        if abs(change) > 0:
+                                            # Get the account address
+                                            account_keys = result.get("transaction", {}).get("message", {}).get("accountKeys", [])
+                                            account_address = None
+                                            if account_index < len(account_keys):
+                                                acc = account_keys[account_index]
+                                                account_address = acc.get("pubkey") if isinstance(acc, dict) else acc
+
+                                            transfers.append({
+                                                "signature": sig,
+                                                "timestamp": result.get("blockTime"),
+                                                "account": account_address,
+                                                "change": change,
+                                                "post_balance": post_amount
+                                            })
+
+                return {
+                    "token_address": token_address,
+                    "transfers": transfers[:limit]
+                }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching initial transfers: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

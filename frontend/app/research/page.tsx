@@ -1862,8 +1862,15 @@ export default function ResearchPage() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Tracking token distribution from mint authority wallet
                   </p>
-                  <div className="mt-2 text-xs font-mono text-gray-500 dark:text-gray-400">
-                    Authority: {mintDistribution.mint_authority?.slice(0, 8)}...{mintDistribution.mint_authority?.slice(-6)}
+                  <div className="mt-2">
+                    <a
+                      href={`https://solscan.io/account/${mintDistribution.mint_authority}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline break-all"
+                    >
+                      {mintDistribution.mint_authority}
+                    </a>
                   </div>
                 </div>
                 <button
@@ -2027,8 +2034,15 @@ export default function ResearchPage() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Tracking token distribution from creator/deployer wallet
                   </p>
-                  <div className="mt-2 text-xs font-mono text-gray-500 dark:text-gray-400">
-                    Creator: {creatorDistribution.creator_address?.slice(0, 8)}...{creatorDistribution.creator_address?.slice(-6)}
+                  <div className="mt-2">
+                    <a
+                      href={`https://solscan.io/account/${creatorDistribution.creator_address}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline break-all"
+                    >
+                      {creatorDistribution.creator_address}
+                    </a>
                   </div>
                 </div>
                 <button
