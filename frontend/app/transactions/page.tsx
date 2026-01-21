@@ -16,10 +16,14 @@ import {
   Moon,
   WalletIcon,
   LineChart,
+  Search,
+  Plus,
 } from 'lucide-react';
 import { api, type Wallet, type WalletTransactionHistory, type TokenTransactionGroup, type TokenTransaction } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
+import WalletConnectButton from '@/components/WalletConnectButton';
+import AddWalletModal from '@/components/AddWalletModal';
 
 const shortenAddress = (address: string) => `${address.slice(0, 4)}...${address.slice(-4)}`;
 
@@ -31,6 +35,7 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Fetch wallets
   const fetchWallets = useCallback(async () => {
@@ -277,6 +282,19 @@ export default function TransactionsPage() {
                 )}
               </button>
 
+              <div className="hidden md:flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 dark:bg-gray-800 hover:bg-blue-700 dark:hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors text-white"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Wallet
+                </button>
+                <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1" />
+                <WalletConnectButton />
+              </div>
+
               {wallets.length > 0 && (
                 <select
                   value={selectedWallet || ''}
@@ -358,6 +376,16 @@ export default function TransactionsPage() {
           </div>
         )}
       </div>
+
+      {/* Add Wallet Modal */}
+      <AddWalletModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onWalletAdded={() => {
+          fetchWallets();
+          setShowAddModal(false);
+        }}
+      />
     </div>
   );
 }
