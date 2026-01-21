@@ -1701,9 +1701,29 @@ async def fetch_wallet_complete_history(
                     logger.error(f"Helius RPC returned error: {data['error']}")
                     raise HTTPException(status_code=500, detail=f"Helius error: {data['error']}")
 
-                transactions = data.get("result", [])
+                result = data.get("result")
+
+                # Debug: Check result type
+                logger.info(f"Helius result type: {type(result)}")
+                if result:
+                    logger.info(f"Helius result preview: {str(result)[:200]}")
+
+                # Ensure we have a list
+                if not isinstance(result, list):
+                    logger.error(f"Expected list from Helius, got {type(result)}: {result}")
+                    raise HTTPException(status_code=500, detail=f"Unexpected response format from Helius: {type(result)}")
+
+                transactions = result
 
         logger.info(f"Fetched {len(transactions)} transactions for {wallet_address[:8]}")
+
+        # Debug: Check what type of data we got
+        if transactions and len(transactions) > 0:
+            logger.info(f"First transaction type: {type(transactions[0])}")
+            if isinstance(transactions[0], dict):
+                logger.info(f"First transaction keys: {list(transactions[0].keys())[:10]}")
+            else:
+                logger.warning(f"Transaction is not a dict, it's: {transactions[0][:100] if isinstance(transactions[0], str) else transactions[0]}")
 
         # Analyze token transfers
         token_mints_seen = set()
@@ -1711,6 +1731,16 @@ async def fetch_wallet_complete_history(
         token_transfer_count = 0
 
         for tx in transactions:
+            # Handle both dict (enhanced) and string (signature) responses
+            if isinstance(tx, str):
+                # Just a signature, skip detailed analysis
+                tx_types["SIGNATURE_ONLY"] = tx_types.get("SIGNATURE_ONLY", 0) + 1
+                continue
+
+            if not isinstance(tx, dict):
+                logger.warning(f"Unexpected transaction type: {type(tx)}")
+                continue
+
             tx_type = tx.get("type", "UNKNOWN")
             tx_types[tx_type] = tx_types.get(tx_type, 0) + 1
 
@@ -1723,8 +1753,8 @@ async def fetch_wallet_complete_history(
                 if mint:
                     token_mints_seen.add(mint)
 
-        first_tx_time = transactions[0].get("timestamp") if transactions else None
-        last_tx_time = transactions[-1].get("timestamp") if transactions else None
+        first_tx_time = transactions[0].get("timestamp") if transactions and isinstance(transactions[0], dict) else None
+        last_tx_time = transactions[-1].get("timestamp") if transactions and isinstance(transactions[-1], dict) else None
 
         return {
             "wallet_address": wallet_address,
