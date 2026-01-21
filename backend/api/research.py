@@ -1666,54 +1666,27 @@ async def fetch_wallet_complete_history(
 
         helius = HeliusService()
 
-        # Use Helius RPC getTransactionsForAddress with tokenAccounts filter
-        # transactionDetails: "full" returns complete transaction objects, not just signatures
-        # tokenAccounts: "balanceChanged" filters spam and returns actual token transfers
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "getTransactionsForAddress",
-            "params": [
-                wallet_address,
-                {
-                    "transactionDetails": "full",  # Get full transaction objects
-                    "filters": {
-                        "tokenAccounts": "balanceChanged"  # Only balance-changing token transfers (filters spam)
-                    },
-                    "sortOrder": "asc",
-                    "limit": limit
-                }
-            ]
-        }
-
+        # Use Helius Enhanced Transaction API (Developer API, not RPC)
+        # This returns properly parsed transaction data with tokenTransfers
+        # Much cleaner than raw RPC getSignaturesForAddress
         timeout = aiohttp.ClientTimeout(total=60)
 
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(helius.rpc_url, json=payload) as response:
+            # Use the Developer API endpoint for parsed transactions
+            url = f"{helius.base_url}/v0/addresses/{wallet_address}/transactions"
+            params = {
+                "api-key": helius.api_key,
+                "limit": min(limit, 100),  # Max 100 per request
+                # No type filter - get ALL transaction types (swaps, transfers, etc.)
+            }
+
+            async with session.get(url, params=params) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    logger.error(f"Helius RPC error: {response.status} - {error_text[:500]}")
+                    logger.error(f"Helius API error: {response.status} - {error_text[:500]}")
                     raise HTTPException(status_code=500, detail=f"Helius API error: {response.status}")
 
-                data = await response.json()
-
-                if "error" in data:
-                    logger.error(f"Helius RPC returned error: {data['error']}")
-                    raise HTTPException(status_code=500, detail=f"Helius error: {data['error']}")
-
-                result = data.get("result")
-
-                # Debug: Check result type
-                logger.info(f"Helius result type: {type(result)}")
-                if result:
-                    logger.info(f"Helius result preview: {str(result)[:200]}")
-
-                # Ensure we have a list
-                if not isinstance(result, list):
-                    logger.error(f"Expected list from Helius, got {type(result)}: {result}")
-                    raise HTTPException(status_code=500, detail=f"Unexpected response format from Helius: {type(result)}")
-
-                transactions = result
+                transactions = await response.json()
 
         logger.info(f"Fetched {len(transactions)} transactions for {wallet_address[:8]}")
 
