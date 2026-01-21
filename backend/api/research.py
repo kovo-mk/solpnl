@@ -1242,3 +1242,130 @@ async def deep_track_token(token_address: str, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error during deep track: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/wallet-trading-history/{token_address}/{wallet_address}")
+async def get_wallet_trading_history(token_address: str, wallet_address: str, db: Session = Depends(get_db)):
+    """
+    Analyze a specific wallet's complete trading history for a token.
+
+    Shows:
+    - All buys and sells
+    - Total profit/loss
+    - Entry and exit prices
+    - Whether they're still holding
+    - Pattern analysis (early buyer -> dumper?)
+    """
+    try:
+        from database.models import SolscanTransferCache
+
+        # Check if we have cached transfers
+        cache_entry = db.query(SolscanTransferCache).filter(
+            SolscanTransferCache.token_address == token_address
+        ).first()
+
+        if not cache_entry:
+            raise HTTPException(
+                status_code=404,
+                detail="No transfer data cached for this token. Run Deep Track first."
+            )
+
+        # Parse all transfers
+        all_transfers = json.loads(cache_entry.transfers_json)
+        logger.info(f"Analyzing wallet {wallet_address[:8]} from {len(all_transfers)} cached transfers")
+
+        # Filter transfers involving this wallet
+        wallet_transfers = []
+        for transfer in all_transfers:
+            from_addr = transfer.get("from_address")
+            to_addr = transfer.get("to_address")
+
+            if from_addr == wallet_address or to_addr == wallet_address:
+                amount = float(transfer.get("amount", 0))
+                decimals = transfer.get("decimals", 6)
+                adjusted_amount = amount / (10 ** decimals)
+
+                # Determine if this is a buy or sell for this wallet
+                if to_addr == wallet_address:
+                    # Wallet received tokens = BUY
+                    wallet_transfers.append({
+                        "signature": transfer.get("trans_id"),
+                        "timestamp": transfer.get("block_time"),
+                        "type": "BUY",
+                        "amount": adjusted_amount,
+                        "from": from_addr,
+                        "to": to_addr
+                    })
+                elif from_addr == wallet_address:
+                    # Wallet sent tokens = SELL
+                    wallet_transfers.append({
+                        "signature": transfer.get("trans_id"),
+                        "timestamp": transfer.get("block_time"),
+                        "type": "SELL",
+                        "amount": adjusted_amount,
+                        "from": from_addr,
+                        "to": to_addr
+                    })
+
+        # Sort by timestamp
+        wallet_transfers.sort(key=lambda x: x["timestamp"])
+
+        if not wallet_transfers:
+            return {
+                "token_address": token_address,
+                "wallet_address": wallet_address,
+                "transactions": [],
+                "total_bought": 0,
+                "total_sold": 0,
+                "net_position": 0,
+                "first_transaction": None,
+                "last_transaction": None,
+                "pattern": "NO_ACTIVITY"
+            }
+
+        # Calculate totals
+        total_bought = sum(t["amount"] for t in wallet_transfers if t["type"] == "BUY")
+        total_sold = sum(t["amount"] for t in wallet_transfers if t["type"] == "SELL")
+        net_position = total_bought - total_sold
+
+        # Determine pattern
+        first_tx = wallet_transfers[0]
+        last_tx = wallet_transfers[-1]
+
+        pattern = "UNKNOWN"
+        if total_bought > 0 and total_sold == 0:
+            pattern = "HOLDER"  # Bought but never sold
+        elif total_bought > 0 and total_sold > 0 and net_position > 0:
+            pattern = "PARTIAL_SELLER"  # Sold some, still holding
+        elif total_bought > 0 and total_sold >= total_bought:
+            pattern = "FULL_EXIT"  # Sold everything (potential insider dump)
+        elif total_bought == 0 and total_sold > 0:
+            pattern = "INITIAL_DISTRIBUTOR"  # Only sold, never bought (team wallet?)
+
+        # Check if early buyer (within first hour of token creation)
+        earliest_timestamp = cache_entry.earliest_timestamp
+        first_tx_timestamp = first_tx["timestamp"]
+        is_early_buyer = (first_tx_timestamp - earliest_timestamp) < 3600  # Within 1 hour
+
+        return {
+            "token_address": token_address,
+            "wallet_address": wallet_address,
+            "transactions": wallet_transfers[:100],  # Limit to first 100 for performance
+            "total_transactions": len(wallet_transfers),
+            "total_bought": total_bought,
+            "total_sold": total_sold,
+            "net_position": net_position,
+            "first_transaction": first_tx,
+            "last_transaction": last_tx,
+            "pattern": pattern,
+            "is_early_buyer": is_early_buyer,
+            "time_to_first_buy_seconds": first_tx_timestamp - earliest_timestamp if first_tx["type"] == "BUY" else None,
+            "buy_count": len([t for t in wallet_transfers if t["type"] == "BUY"]),
+            "sell_count": len([t for t in wallet_transfers if t["type"] == "SELL"]),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing wallet trading history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
