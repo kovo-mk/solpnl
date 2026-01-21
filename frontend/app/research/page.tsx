@@ -164,6 +164,10 @@ export default function ResearchPage() {
   const [showDeepTrackConfirm, setShowDeepTrackConfirm] = useState(false);
   const [deepTrackStatus, setDeepTrackStatus] = useState<string | null>(null);
   const [isDeepTracking, setIsDeepTracking] = useState(false);
+  const [showWalletAnalysis, setShowWalletAnalysis] = useState(false);
+  const [walletAnalysisInput, setWalletAnalysisInput] = useState('');
+  const [walletAnalysisData, setWalletAnalysisData] = useState<any>(null);
+  const [loadingWalletAnalysis, setLoadingWalletAnalysis] = useState(false);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -432,6 +436,33 @@ export default function ResearchPage() {
       setDeepTrackStatus('Failed to backfill transfers');
     } finally {
       setIsDeepTracking(false);
+    }
+  };
+
+  const handleWalletAnalysis = async () => {
+    if (!report || !walletAnalysisInput.trim()) {
+      return;
+    }
+
+    setLoadingWalletAnalysis(true);
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const response = await fetch(
+        `${API_BASE}/research/wallet-trading-history/${report.token_address}/${walletAnalysisInput.trim()}`
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setWalletAnalysisData(data);
+      } else {
+        setWalletAnalysisData({ error: data.detail || 'Failed to analyze wallet' });
+      }
+    } catch (err) {
+      console.error('Error analyzing wallet:', err);
+      setWalletAnalysisData({ error: 'Failed to analyze wallet' });
+    } finally {
+      setLoadingWalletAnalysis(false);
     }
   };
 
@@ -874,6 +905,13 @@ export default function ResearchPage() {
                         🔍 Deep Track
                       </>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowWalletAnalysis(true)}
+                    className="px-6 py-3 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+                  >
+                    🕵️ Analyze Wallet
                   </button>
                 </div>
               </div>
@@ -2568,6 +2606,217 @@ export default function ResearchPage() {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Wallet Analysis Modal */}
+        {showWalletAnalysis && report && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !loadingWalletAnalysis && setShowWalletAnalysis(false)}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  🕵️ Wallet Insider Analysis
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setShowWalletAnalysis(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6">
+                {/* Input Section */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Wallet Address
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={walletAnalysisInput}
+                      onChange={(e) => setWalletAnalysisInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleWalletAnalysis()}
+                      placeholder="Enter wallet address (e.g., WGQnogYKikMu8...)"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      disabled={loadingWalletAnalysis}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleWalletAnalysis}
+                      disabled={loadingWalletAnalysis || !walletAnalysisInput.trim()}
+                      className="px-6 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      {loadingWalletAnalysis ? (
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                      ) : (
+                        'Analyze'
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    Paste a wallet address to see their complete trading history for {report.token_symbol || 'this token'}
+                  </p>
+                </div>
+
+                {/* Results Section */}
+                {walletAnalysisData && (
+                  <div className="overflow-y-auto max-h-[50vh]">
+                    {walletAnalysisData.error ? (
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-4">
+                        <p className="text-red-700 dark:text-red-300">{walletAnalysisData.error}</p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Pattern Badge */}
+                        <div className="mb-4 flex items-center gap-3 flex-wrap">
+                          <div className={`px-4 py-2 rounded-lg font-bold text-sm ${
+                            walletAnalysisData.pattern === 'FULL_EXIT' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                            walletAnalysisData.pattern === 'INITIAL_DISTRIBUTOR' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400' :
+                            walletAnalysisData.pattern === 'PARTIAL_SELLER' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
+                            walletAnalysisData.pattern === 'HOLDER' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                            'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}>
+                            {walletAnalysisData.pattern.replace(/_/g, ' ')}
+                          </div>
+                          {walletAnalysisData.is_early_buyer && (
+                            <div className="px-4 py-2 rounded-lg font-bold text-sm bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400">
+                              ⚡ EARLY BUYER
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Bought</div>
+                            <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                              {walletAnalysisData.total_bought.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Sold</div>
+                            <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                              {walletAnalysisData.total_sold.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Net Position</div>
+                            <div className={`text-xl font-bold ${
+                              walletAnalysisData.net_position > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {walletAnalysisData.net_position.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Buy Trades</div>
+                            <div className="text-xl font-bold text-gray-900 dark:text-white">
+                              {walletAnalysisData.buy_count}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sell Trades</div>
+                            <div className="text-xl font-bold text-gray-900 dark:text-white">
+                              {walletAnalysisData.sell_count}
+                            </div>
+                          </div>
+                          {walletAnalysisData.time_to_first_buy_seconds !== null && (
+                            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Time to First Buy</div>
+                              <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                                {walletAnalysisData.time_to_first_buy_seconds < 60
+                                  ? `${walletAnalysisData.time_to_first_buy_seconds}s`
+                                  : `${Math.floor(walletAnalysisData.time_to_first_buy_seconds / 60)}m`}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Transactions List */}
+                        <div className="mb-4">
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">
+                            Recent Transactions ({walletAnalysisData.total_transactions} total)
+                          </h3>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {walletAnalysisData.transactions.slice(0, 20).map((tx: any, idx: number) => (
+                              <div key={idx} className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                      tx.type === 'BUY' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                      'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                                    }`}>
+                                      {tx.type === 'BUY' ? '📥 BUY' : '📤 SELL'}
+                                    </span>
+                                    <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                      {tx.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })} tokens
+                                    </span>
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    {new Date(tx.timestamp * 1000).toLocaleString()}
+                                  </div>
+                                </div>
+                                <a
+                                  href={`https://solscan.io/tx/${tx.signature}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1 block font-mono"
+                                >
+                                  {tx.signature.slice(0, 16)}...
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Interpretation */}
+                        <div className={`rounded-lg p-4 border ${
+                          walletAnalysisData.pattern === 'FULL_EXIT' && walletAnalysisData.is_early_buyer
+                            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700'
+                            : walletAnalysisData.pattern === 'INITIAL_DISTRIBUTOR'
+                            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700'
+                            : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
+                        }`}>
+                          <h4 className={`font-semibold mb-2 ${
+                            walletAnalysisData.pattern === 'FULL_EXIT' && walletAnalysisData.is_early_buyer
+                              ? 'text-red-900 dark:text-red-300'
+                              : walletAnalysisData.pattern === 'INITIAL_DISTRIBUTOR'
+                              ? 'text-orange-900 dark:text-orange-300'
+                              : 'text-blue-900 dark:text-blue-300'
+                          }`}>
+                            💡 Analysis
+                          </h4>
+                          <p className={`text-sm ${
+                            walletAnalysisData.pattern === 'FULL_EXIT' && walletAnalysisData.is_early_buyer
+                              ? 'text-red-800 dark:text-red-200'
+                              : walletAnalysisData.pattern === 'INITIAL_DISTRIBUTOR'
+                              ? 'text-orange-800 dark:text-orange-200'
+                              : 'text-blue-800 dark:text-blue-200'
+                          }`}>
+                            {walletAnalysisData.pattern === 'FULL_EXIT' && walletAnalysisData.is_early_buyer && (
+                              '🚩 HIGH RISK: This wallet bought early and sold everything. Classic insider dump pattern.'
+                            )}
+                            {walletAnalysisData.pattern === 'INITIAL_DISTRIBUTOR' && (
+                              '⚠️ TEAM WALLET: This wallet only distributed tokens, never bought. Likely creator or team.'
+                            )}
+                            {walletAnalysisData.pattern === 'HOLDER' && walletAnalysisData.is_early_buyer && (
+                              '✅ CONVICTION: Early buyer still holding. Shows long-term belief in project.'
+                            )}
+                            {walletAnalysisData.pattern === 'PARTIAL_SELLER' && (
+                              'ℹ️ PROFIT TAKING: Wallet took some profits but still holding. Normal trading behavior.'
+                            )}
+                            {walletAnalysisData.pattern === 'HOLDER' && !walletAnalysisData.is_early_buyer && (
+                              'ℹ️ RECENT BUYER: Bought and holding. Not an early participant.'
+                            )}
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
