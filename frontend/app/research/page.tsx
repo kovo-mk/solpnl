@@ -360,7 +360,7 @@ export default function ResearchPage() {
 
       const data = await response.json();
 
-      // Handle both success and error cases
+      // Set distribution data (handles both success and error responses from API)
       setMintDistribution(data);
       setShowMintDistribution(true);
     } catch (err) {
