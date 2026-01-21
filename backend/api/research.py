@@ -1662,8 +1662,9 @@ async def fetch_wallet_complete_history(
         page = 1
         page_size = 100
 
-        # Solscan Pro API endpoint for account transactions
-        url = "https://pro-api.solscan.io/v2.0/account/transaction"
+        # Solscan Pro API endpoint for account transfers
+        # Note: Solscan v2.0 API uses /account/transfer for SPL token transfers
+        url = "https://pro-api.solscan.io/v2.0/account/transfer"
 
         # Get API key from settings
         from config import settings
