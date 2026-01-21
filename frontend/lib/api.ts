@@ -294,6 +294,44 @@ class ApiClient {
   async toggleTokenHidden(mint: string): Promise<{ mint: string; symbol: string; is_hidden: boolean; is_verified: boolean }> {
     return this.request(`/tokens/${mint}/hide`, { method: 'PATCH' });
   }
+
+  // Wallet transaction history (detailed, organized by token)
+  async getWalletTransactionsDetailed(address: string): Promise<WalletTransactionHistory> {
+    return this.request<WalletTransactionHistory>(`/research/wallet-transactions-detailed/${address}`);
+  }
 }
 
 export const api = new ApiClient();
+
+// Types for detailed transaction history
+export interface TokenTransaction {
+  signature: string;
+  timestamp: number;
+  type: string;
+  amount: number;
+  from: string;
+  to: string;
+  mint: string;
+}
+
+export interface TokenTransactionGroup {
+  mint: string;
+  symbol: string;
+  name?: string;
+  buy_count: number;
+  sell_count: number;
+  transfer_out_count: number;
+  transfer_in_count: number;
+  buys: TokenTransaction[];
+  sells: TokenTransaction[];
+  transfers_out: TokenTransaction[];
+  transfers_in: TokenTransaction[];
+}
+
+export interface WalletTransactionHistory {
+  wallet_address: string;
+  total_transactions: number;
+  unique_tokens: number;
+  cached_at: string | null;
+  tokens: TokenTransactionGroup[];
+}
