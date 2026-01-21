@@ -16,6 +16,7 @@ import {
   BarChart3,
   Sun,
   Moon,
+  History,
 } from 'lucide-react';
 import { api, type Portfolio, type TokenPnL, type Wallet } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -261,6 +262,13 @@ export default function PnLDashboard() {
                   <LineChart className="w-4 h-4" />
                   P&L
                 </Link>
+                <Link
+                  href="/transactions"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <History className="w-4 h-4" />
+                  Transactions
+                </Link>
               </nav>
             </div>
 
@@ -349,6 +357,13 @@ export default function PnLDashboard() {
           >
             <LineChart className="w-5 h-5" />
             <span className="text-[10px] font-medium">P&L</span>
+          </Link>
+          <Link
+            href="/transactions"
+            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+          >
+            <History className="w-5 h-5" />
+            <span className="text-[10px] font-medium">Txns</span>
           </Link>
           <button
             type="button"

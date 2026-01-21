@@ -23,6 +23,7 @@ import {
   Info,
   Search,
   ArrowUpDown,
+  History,
 } from 'lucide-react';
 import { api, type Portfolio, type Wallet as WalletType, type SyncStatus, type WalletBalances } from '@/lib/api';
 import { formatUSD, formatPnL, cn, shortenAddress, timeAgo } from '@/lib/utils';
@@ -238,6 +239,13 @@ export default function Home() {
                   <LineChart className="w-4 h-4" />
                   P&L
                 </Link>
+                <Link
+                  href="/transactions"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all"
+                >
+                  <History className="w-4 h-4" />
+                  Transactions
+                </Link>
               </nav>
             </div>
 
@@ -300,30 +308,29 @@ export default function Home() {
           </Link>
           <Link
             href="/research"
-            className="flex flex-col items-center gap-1 px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all"
+            className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all"
           >
             <Search className="w-5 h-5" />
             <span className="text-xs font-medium">Research</span>
           </Link>
           <Link
             href="/pnl"
-            className="flex flex-col items-center gap-1 px-4 py-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all"
+            className="flex flex-col items-center gap-1 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all"
           >
             <LineChart className="w-5 h-5" />
             <span className="text-xs font-medium">P&L</span>
           </Link>
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
+          <Link
+            href="/transactions"
+            className="flex flex-col items-center gap-1 px-2 py-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all"
           >
-            <Plus className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Add</span>
-          </button>
+            <History className="w-5 h-5" />
+            <span className="text-xs font-medium">Txns</span>
+          </Link>
           <button
             type="button"
             onClick={() => setShowWalletManager(true)}
-            className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
+            className="flex flex-col items-center gap-0.5 px-2 py-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-white"
           >
             <Settings className="w-5 h-5" />
             <span className="text-[10px] font-medium">Manage</span>

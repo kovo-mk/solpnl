@@ -1,7 +1,8 @@
 'use client';
 // Token fraud detection and analysis page
 import { useState, useEffect, useRef } from 'react';
-import { Search, Twitter, Wallet, FileText, AlertCircle, Sun, Moon, Download } from 'lucide-react';
+import Link from 'next/link';
+import { Search, Twitter, Wallet, FileText, AlertCircle, Sun, Moon, Download, BarChart3, Wallet as WalletIcon, LineChart, History } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 interface RedFlag {
@@ -553,6 +554,65 @@ export default function ResearchPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      {/* Header */}
+      <header className="border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm sticky top-0 z-40 transition-colors mb-8">
+        <div className="max-w-7xl mx-auto px-3 py-2.5 md:px-4 md:py-3">
+          <div className="flex items-center justify-between">
+            {/* Left: Logo + Desktop Nav */}
+            <div className="flex items-center gap-6">
+              {/* Logo */}
+              <Link href="/" className="flex items-center gap-2">
+                <div className="p-1.5 bg-gradient-to-br from-sol-purple to-sol-green rounded-lg">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-lg font-bold text-gray-900 dark:text-white">SolPnL</span>
+              </Link>
+
+              {/* Desktop Nav Tabs */}
+              <nav className="hidden md:flex items-center gap-1">
+                <Link
+                  href="/"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <WalletIcon className="w-4 h-4" />
+                  Portfolio
+                </Link>
+                <Link
+                  href="/pnl"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <LineChart className="w-4 h-4" />
+                  P&L
+                </Link>
+                <Link
+                  href="/transactions"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <History className="w-4 h-4" />
+                  Transactions
+                </Link>
+              </nav>
+            </div>
+
+            {/* Right: Theme Toggle */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="p-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {isDark ? (
+                  <Sun className="w-4 h-4 text-yellow-500" />
+                ) : (
+                  <Moon className="w-4 h-4 text-gray-600" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="mb-8 flex items-start justify-between">
           <div>
