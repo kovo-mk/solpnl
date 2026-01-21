@@ -379,9 +379,17 @@ export default function ResearchPage() {
     setLoadingCreatorDistribution(true);
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-      const response = await fetch(`${API_BASE}/research/creator-distribution/${tokenAddress}`);
 
+      // Fetch creator distribution
+      const response = await fetch(`${API_BASE}/research/creator-distribution/${tokenAddress}`);
       const data = await response.json();
+
+      // If creator has 0 distributions, also fetch initial transfers
+      if (data.distribution && data.distribution.total_distributed === 0) {
+        const transfersResponse = await fetch(`${API_BASE}/research/token-initial-transfers/${tokenAddress}?limit=20`);
+        const transfersData = await transfersResponse.json();
+        data.initial_transfers = transfersData.transfers || [];
+      }
 
       // Set distribution data (handles both success and error responses from API)
       setCreatorDistribution(data);
@@ -2163,6 +2171,73 @@ export default function ResearchPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Initial Transfers - Show when creator has 0 distributions */}
+                    {creatorDistribution.distribution?.total_distributed === 0 && creatorDistribution.initial_transfers && creatorDistribution.initial_transfers.length > 0 && (
+                      <div className="mt-6">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700 mb-4">
+                          <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">📊 Initial Token Allocation</h4>
+                          <p className="text-sm text-blue-800 dark:text-blue-200">
+                            Creator sent initial supply directly to liquidity pools/contracts. Showing first {creatorDistribution.initial_transfers.length} transactions to reveal initial distribution pattern.
+                          </p>
+                        </div>
+
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">First {creatorDistribution.initial_transfers.length} Transactions</h3>
+                        <div className="space-y-2">
+                          {creatorDistribution.initial_transfers.map((transfer: any, idx: number) => {
+                            const isReceiving = transfer.change > 0;
+                            const isSelling = transfer.change < 0;
+
+                            return (
+                              <div key={`${transfer.signature}-${idx}`} className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-xs font-bold px-2 py-1 rounded ${
+                                        isReceiving ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
+                                        isSelling ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
+                                        'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                                      }`}>
+                                        {isReceiving ? '📥 BUY' : isSelling ? '📤 SELL' : '↔️ MOVE'}
+                                      </span>
+                                      <a
+                                        href={`https://solscan.io/account/${transfer.account}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                      >
+                                        {transfer.account?.slice(0, 8)}...{transfer.account?.slice(-6)}
+                                      </a>
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                      {transfer.timestamp ? new Date(transfer.timestamp * 1000).toLocaleString() : 'Unknown time'}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className={`text-sm font-bold ${
+                                      isReceiving ? 'text-green-600 dark:text-green-400' :
+                                      isSelling ? 'text-red-600 dark:text-red-400' :
+                                      'text-gray-600 dark:text-gray-400'
+                                    }`}>
+                                      {isReceiving ? '+' : ''}{transfer.change.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      Balance: {transfer.post_balance?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="mt-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 border border-yellow-200 dark:border-yellow-700">
+                          <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                            <strong>💡 Look for patterns:</strong> If the same wallets appear buying large amounts early, this may indicate insider trading before public launch.
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Top Recipients */}
                     {creatorDistribution.distribution?.top_recipients && creatorDistribution.distribution.top_recipients.length > 0 && (
