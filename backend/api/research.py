@@ -1895,3 +1895,165 @@ async def configure_monitor(interval_seconds: int = 60):
         "message": f"Monitor will check every {interval_seconds} seconds"
     }
 
+
+@router.get("/wallet-transactions-detailed/{wallet_address}")
+async def get_wallet_transactions_detailed(wallet_address: str, db: Session = Depends(get_db)):
+    """
+    Get detailed transaction history organized by token.
+    
+    Returns transactions grouped by token with buy/sell counts,
+    transfer destinations, and amounts.
+    """
+    try:
+        from database.models import WalletTransactionCache
+        import json
+        from collections import defaultdict
+        
+        # Get cached transactions
+        cache_entry = db.query(WalletTransactionCache).filter(
+            WalletTransactionCache.wallet_address == wallet_address
+        ).first()
+        
+        if not cache_entry:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No transaction history found for wallet. Please fetch it first using /wallet-complete-history/{wallet_address}"
+            )
+        
+        transactions = json.loads(cache_entry.transactions_json)
+        
+        # Organize transactions by token
+        token_data = defaultdict(lambda: {
+            "buys": [],
+            "sells": [],
+            "transfers_out": [],
+            "transfers_in": []
+        })
+        
+        # Native SOL tracking
+        sol_data = {
+            "buys": [],
+            "sells": [],
+            "transfers_out": [],
+            "transfers_in": []
+        }
+        
+        for tx in transactions:
+            if not isinstance(tx, dict):
+                continue
+            
+            signature = tx.get("signature", "")
+            timestamp = tx.get("timestamp")
+            tx_type = tx.get("type", "UNKNOWN")
+            token_transfers = tx.get("tokenTransfers", [])
+            native_transfers = tx.get("nativeTransfers", [])
+            
+            # Process token transfers
+            for transfer in token_transfers:
+                mint = transfer.get("mint", "UNKNOWN")
+                from_addr = transfer.get("fromUserAccount", "")
+                to_addr = transfer.get("toUserAccount", "")
+                amount = transfer.get("tokenAmount", 0)
+                
+                tx_info = {
+                    "signature": signature,
+                    "timestamp": timestamp,
+                    "type": tx_type,
+                    "amount": amount,
+                    "from": from_addr,
+                    "to": to_addr,
+                    "mint": mint
+                }
+                
+                # Categorize as buy, sell, or transfer
+                if from_addr == wallet_address and to_addr != wallet_address:
+                    if tx_type in ["SWAP", "EXCHANGE"]:
+                        token_data[mint]["sells"].append(tx_info)
+                    else:
+                        token_data[mint]["transfers_out"].append(tx_info)
+                elif to_addr == wallet_address and from_addr != wallet_address:
+                    if tx_type in ["SWAP", "EXCHANGE"]:
+                        token_data[mint]["buys"].append(tx_info)
+                    else:
+                        token_data[mint]["transfers_in"].append(tx_info)
+            
+            # Process native SOL transfers
+            for transfer in native_transfers:
+                from_addr = transfer.get("fromUserAccount", "")
+                to_addr = transfer.get("toUserAccount", "")
+                amount = transfer.get("amount", 0) / 1e9
+                
+                tx_info = {
+                    "signature": signature,
+                    "timestamp": timestamp,
+                    "type": tx_type,
+                    "amount": amount,
+                    "from": from_addr,
+                    "to": to_addr,
+                    "mint": "So11111111111111111111111111111111111111112"
+                }
+                
+                if from_addr == wallet_address and to_addr != wallet_address:
+                    if tx_type in ["SWAP", "EXCHANGE"]:
+                        sol_data["sells"].append(tx_info)
+                    else:
+                        sol_data["transfers_out"].append(tx_info)
+                elif to_addr == wallet_address and from_addr != wallet_address:
+                    if tx_type in ["SWAP", "EXCHANGE"]:
+                        sol_data["buys"].append(tx_info)
+                    else:
+                        sol_data["transfers_in"].append(tx_info)
+        
+        # Convert to list format with summary stats
+        tokens_summary = []
+        
+        # Add SOL first if it has activity
+        if any(sol_data.values()):
+            tokens_summary.append({
+                "mint": "So11111111111111111111111111111111111111112",
+                "symbol": "SOL",
+                "name": "Solana",
+                "buy_count": len(sol_data["buys"]),
+                "sell_count": len(sol_data["sells"]),
+                "transfer_out_count": len(sol_data["transfers_out"]),
+                "transfer_in_count": len(sol_data["transfers_in"]),
+                "buys": sol_data["buys"][:100],
+                "sells": sol_data["sells"][:100],
+                "transfers_out": sol_data["transfers_out"][:100],
+                "transfers_in": sol_data["transfers_in"][:100]
+            })
+        
+        # Add other tokens
+        for mint, data in token_data.items():
+            tokens_summary.append({
+                "mint": mint,
+                "symbol": mint[:8] + "...",
+                "buy_count": len(data["buys"]),
+                "sell_count": len(data["sells"]),
+                "transfer_out_count": len(data["transfers_out"]),
+                "transfer_in_count": len(data["transfers_in"]),
+                "buys": data["buys"][:100],
+                "sells": data["sells"][:100],
+                "transfers_out": data["transfers_out"][:100],
+                "transfers_in": data["transfers_in"][:100]
+            })
+        
+        # Sort by total activity
+        tokens_summary.sort(
+            key=lambda x: x["buy_count"] + x["sell_count"] + x["transfer_out_count"] + x["transfer_in_count"],
+            reverse=True
+        )
+        
+        return {
+            "wallet_address": wallet_address,
+            "total_transactions": len(transactions),
+            "unique_tokens": len(tokens_summary),
+            "cached_at": cache_entry.cached_at.isoformat() if cache_entry.cached_at else None,
+            "tokens": tokens_summary
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting detailed transactions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
