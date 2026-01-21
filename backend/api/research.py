@@ -914,9 +914,10 @@ async def get_token_initial_transfers(token_address: str, limit: int = 10):
         timeout = aiohttp.ClientTimeout(total=60)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             # Paginate backwards to find the oldest signatures
+            # For performance, limit to 3 pages (3000 signatures max)
             all_signatures = []
             before_signature = None
-            max_pages = 10  # Fetch up to 10,000 signatures (10 pages of 1000)
+            max_pages = 3
 
             logger.info(f"Fetching oldest signatures for {token_address[:8]}...")
 
@@ -936,10 +937,12 @@ async def get_token_initial_transfers(token_address: str, limit: int = 10):
 
                 async with session.post(url, json=payload) as response:
                     if response.status != 200:
+                        logger.warning(f"Failed to fetch page {page + 1}")
                         break
 
                     data = await response.json()
                     if "error" in data:
+                        logger.warning(f"RPC error on page {page + 1}: {data.get('error')}")
                         break
 
                     signatures = data.get("result", [])
@@ -956,9 +959,26 @@ async def get_token_initial_transfers(token_address: str, limit: int = 10):
                         logger.info(f"Reached the beginning - found {len(all_signatures)} total signatures")
                         break
 
-            # Get the oldest signatures (last in the list)
-            oldest_signatures = [sig["signature"] for sig in all_signatures[-limit:]]
-            logger.info(f"Analyzing {len(oldest_signatures)} oldest transactions")
+            # If we have signatures, get the oldest ones
+            if all_signatures:
+                oldest_signatures = [sig["signature"] for sig in all_signatures[-min(limit, len(all_signatures)):]]
+                logger.info(f"Analyzing {len(oldest_signatures)} oldest transactions from {len(all_signatures)} total")
+            else:
+                # Fallback: just use the first batch if pagination failed
+                logger.warning("Pagination failed, using most recent signatures as fallback")
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": "get-signatures-fallback",
+                    "method": "getSignaturesForAddress",
+                    "params": [token_address, {"limit": limit}]
+                }
+                async with session.post(url, json=payload) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        signatures = data.get("result", [])
+                        oldest_signatures = [sig["signature"] for sig in signatures]
+                    else:
+                        raise HTTPException(status_code=500, detail="Failed to fetch signatures")
 
                 # Fetch transaction details for each signature
                 transfers = []
