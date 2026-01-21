@@ -358,18 +358,15 @@ export default function ResearchPage() {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
       const response = await fetch(`${API_BASE}/research/mint-distribution/${tokenAddress}`);
 
-      if (!response.ok) {
-        console.error('Failed to fetch mint distribution');
-        setMintDistribution(null);
-        return;
-      }
-
       const data = await response.json();
+
+      // Handle both success and error cases
       setMintDistribution(data);
       setShowMintDistribution(true);
     } catch (err) {
       console.error('Error fetching mint distribution:', err);
-      setMintDistribution(null);
+      setMintDistribution({ error: 'Failed to load distribution data' });
+      setShowMintDistribution(true);
     } finally {
       setLoadingMintDistribution(false);
     }
@@ -1839,31 +1836,62 @@ export default function ResearchPage() {
               </div>
 
               <div className="p-6 overflow-y-auto max-h-[calc(80vh-200px)]">
-                {/* Distribution Summary */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-6 border border-purple-200 dark:border-purple-700">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Distributed</div>
-                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                      {mintDistribution.distribution?.total_distributed?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      {mintDistribution.distribution?.total_distributed_pct?.toFixed(2)}% of supply
+                {/* Show error message if no mint authority */}
+                {mintDistribution.error || mintDistribution.message ? (
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-6 border border-yellow-200 dark:border-yellow-700">
+                    <div className="flex items-start gap-3">
+                      <span className="text-3xl">⚠️</span>
+                      <div>
+                        <h3 className="font-semibold text-yellow-900 dark:text-yellow-300 mb-2">
+                          {mintDistribution.error || 'No Mint Authority'}
+                        </h3>
+                        <p className="text-yellow-800 dark:text-yellow-200 mb-4">
+                          {mintDistribution.message || 'Unable to track distribution for this token.'}
+                        </p>
+                        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-yellow-300 dark:border-yellow-600">
+                          <h4 className="font-semibold text-gray-900 dark:text-white mb-2">💡 What This Means</h4>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                            This token's mint authority has been <strong>revoked</strong> or was never set. This is actually a <strong className="text-green-600 dark:text-green-400">POSITIVE sign</strong> for several reasons:
+                          </p>
+                          <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-2 ml-4">
+                            <li>✅ <strong>No new tokens can be created</strong> - prevents inflation and rug pulls</li>
+                            <li>✅ <strong>Fixed supply</strong> - total supply is permanent and cannot be changed</li>
+                            <li>✅ <strong>Decentralized</strong> - no single entity can mint more tokens</li>
+                          </ul>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 italic">
+                            Many legitimate projects revoke mint authority after initial distribution as a trust signal.
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
+                ) : (
+                  <>
+                    {/* Distribution Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      <div className="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-6 border border-purple-200 dark:border-purple-700">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Distributed</div>
+                        <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                          {mintDistribution.distribution?.total_distributed?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          {mintDistribution.distribution?.total_distributed_pct?.toFixed(2)}% of supply
+                        </div>
+                      </div>
 
-                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Supply</div>
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                      {mintDistribution.total_supply?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Supply</div>
+                        <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                          {mintDistribution.total_supply?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          {mintDistribution.distribution?.transaction_count} transactions
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      {mintDistribution.distribution?.transaction_count} transactions
-                    </div>
-                  </div>
-                </div>
 
-                {/* Breakdown */}
-                <div className="space-y-4">
+                    {/* Breakdown */}
+                    <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Distribution Breakdown</h3>
 
                   {/* Sold via DEX */}
@@ -1932,15 +1960,17 @@ export default function ResearchPage() {
                   )}
                 </div>
 
-                {/* Interpretation */}
-                <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
-                  <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">💡 What This Means</h4>
-                  <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                    <li>• <strong>Sold via DEX</strong>: Tokens sent to liquidity pools for trading</li>
-                    <li>• <strong>Transferred</strong>: Tokens sent to wallets (team allocation, airdrops, etc.)</li>
-                    <li>• <strong>Burned</strong>: Permanently removed from circulation</li>
-                  </ul>
-                </div>
+                    {/* Interpretation */}
+                    <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                      <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">💡 What This Means</h4>
+                      <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                        <li>• <strong>Sold via DEX</strong>: Tokens sent to liquidity pools for trading</li>
+                        <li>• <strong>Transferred</strong>: Tokens sent to wallets (team allocation, airdrops, etc.)</li>
+                        <li>• <strong>Burned</strong>: Permanently removed from circulation</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
