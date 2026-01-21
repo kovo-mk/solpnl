@@ -1637,117 +1637,107 @@ async def get_wallet_full_history(
 @router.post("/wallet-complete-history/{wallet_address}")
 async def fetch_wallet_complete_history(
     wallet_address: str,
-    max_pages: int = 200
+    limit: int = 1000
 ):
     """
-    Fetch COMPLETE wallet activity from Solscan Pro API (can handle 10K+ transactions).
+    Fetch COMPLETE wallet token transfer history using Helius getTransactionsForAddress.
 
-    Uses Solscan's account/transaction endpoint to get ALL activity for a wallet.
-    This can fetch tens of thousands of transactions across all tokens.
-
-    WARNING: This can take several minutes for wallets with 10K+ transactions.
-    Fetches in batches of 100 and paginates through all history.
+    Uses Helius RPC with tokenAccounts filter to get ALL token transfers in a single efficient call.
+    This is much faster than paginating through Solscan.
 
     Args:
         wallet_address: Solana wallet address
-        max_pages: Safety limit (default 200 = 20K transactions max)
+        limit: Max transactions to fetch (default 1000)
 
     Returns:
-        Summary of all wallet activity
+        Summary of all wallet token transfer activity
     """
     try:
-        logger.info(f"Starting complete history fetch for wallet {wallet_address[:8]}... (max {max_pages} pages)")
-
-        all_transactions = []
-        page = 1
-        page_size = 100
-
-        # Solscan Pro API endpoint for account transfers
-        # Note: Solscan v2.0 API uses /account/transfer for SPL token transfers
-        url = "https://pro-api.solscan.io/v2.0/account/transfer"
-
-        # Get API key from settings
+        from services.helius import HeliusService
         from config import settings
 
-        if not settings.SOLSCAN_API_KEY:
+        if not settings.HELIUS_API_KEY:
             raise HTTPException(
                 status_code=500,
-                detail="Solscan Pro API key not configured"
+                detail="Helius API key not configured"
             )
 
-        headers = {
-            "token": settings.SOLSCAN_API_KEY,
-            "accept": "application/json"
+        logger.info(f"Fetching complete token transfer history for {wallet_address[:8]} using Helius...")
+
+        helius = HeliusService()
+
+        # Use Helius RPC getTransactionsForAddress with tokenAccounts filter
+        # This gets ALL transactions that reference the wallet or its token accounts
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getTransactionsForAddress",
+            "params": [
+                wallet_address,
+                {
+                    "filters": {
+                        "tokenAccounts": "all"  # Include all token account transactions
+                    },
+                    "sortOrder": "asc",
+                    "limit": limit
+                }
+            ]
         }
 
-        timeout = aiohttp.ClientTimeout(total=30)
+        timeout = aiohttp.ClientTimeout(total=60)
 
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            while page <= max_pages:
-                params = {
-                    "address": wallet_address,
-                    "page": page,
-                    "page_size": page_size,
-                }
+            async with session.post(helius.rpc_url, json=payload) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    logger.error(f"Helius RPC error: {response.status} - {error_text[:500]}")
+                    raise HTTPException(status_code=500, detail=f"Helius API error: {response.status}")
 
-                logger.info(f"Fetching page {page} for wallet {wallet_address[:8]}...")
+                data = await response.json()
 
-                async with session.get(url, headers=headers, params=params) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        logger.error(f"Solscan API error on page {page}: {response.status} - {error_text[:500]}")
-                        break
+                if "error" in data:
+                    logger.error(f"Helius RPC returned error: {data['error']}")
+                    raise HTTPException(status_code=500, detail=f"Helius error: {data['error']}")
 
-                    data = await response.json()
+                transactions = data.get("result", [])
 
-                    if not data.get("success"):
-                        logger.error(f"Solscan API returned success=false: {data}")
-                        break
+        logger.info(f"Fetched {len(transactions)} transactions for {wallet_address[:8]}")
 
-                    transactions = data.get("data", [])
-
-                    if not transactions:
-                        logger.info(f"No more transactions at page {page}. Total: {len(all_transactions)}")
-                        break
-
-                    all_transactions.extend(transactions)
-                    logger.info(f"Page {page}: {len(transactions)} txs (total: {len(all_transactions)})")
-
-                    if len(transactions) < page_size:
-                        logger.info(f"Reached end at page {page}")
-                        break
-
-                    page += 1
-                    await asyncio.sleep(0.1)
-
-        logger.info(f"Completed: {len(all_transactions)} transactions for {wallet_address[:8]}")
-
-        # Analyze transactions
+        # Analyze token transfers
+        token_mints_seen = set()
         tx_types = {}
-        signatures_seen = set()
+        token_transfer_count = 0
 
-        for tx in all_transactions:
-            sig = tx.get("trans_id") or tx.get("signature")
-            if sig:
-                signatures_seen.add(sig)
-
-            tx_type = tx.get("trans_type") or tx.get("type", "UNKNOWN")
+        for tx in transactions:
+            tx_type = tx.get("type", "UNKNOWN")
             tx_types[tx_type] = tx_types.get(tx_type, 0) + 1
 
-        first_tx_time = all_transactions[0].get("block_time") if all_transactions else None
-        last_tx_time = all_transactions[-1].get("block_time") if all_transactions else None
+            # Track token transfers
+            token_transfers = tx.get("tokenTransfers", [])
+            token_transfer_count += len(token_transfers)
+
+            for transfer in token_transfers:
+                mint = transfer.get("mint")
+                if mint:
+                    token_mints_seen.add(mint)
+
+        first_tx_time = transactions[0].get("timestamp") if transactions else None
+        last_tx_time = transactions[-1].get("timestamp") if transactions else None
 
         return {
             "wallet_address": wallet_address,
-            "total_records": len(all_transactions),
-            "unique_transactions": len(signatures_seen),
-            "pages_fetched": page - 1,
+            "total_transactions": len(transactions),
+            "token_transfers": token_transfer_count,
+            "unique_tokens": len(token_mints_seen),
             "transaction_types": tx_types,
             "first_transaction_time": first_tx_time,
             "last_transaction_time": last_tx_time,
-            "sample_transactions": all_transactions[:10]  # Show first 10 as sample
+            "tokens_seen": list(token_mints_seen)[:20],  # Show first 20 tokens
+            "sample_transactions": transactions[:5]  # Show first 5 as sample
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error fetching complete wallet history: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
