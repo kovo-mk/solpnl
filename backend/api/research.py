@@ -902,43 +902,63 @@ async def get_mint_distribution(token_address: str):
 @router.get("/token-initial-transfers/{token_address}")
 async def get_token_initial_transfers(token_address: str, limit: int = 10):
     """
-    Get the first N token transfers to see where tokens initially went.
+    Get the ACTUAL first N token transfers from blockchain history.
 
-    Useful for understanding initial token distribution when creator wallet
-    shows 0 transfers (tokens may have been allocated during mint).
+    Paginates backwards through all signatures to find the very first transactions,
+    not just recent ones from our database cache.
     """
     try:
         helius = get_helius_service()
-
-        # Get the oldest signatures for this token mint
         url = f"{helius.rpc_url}"
 
-        payload = {
-            "jsonrpc": "2.0",
-            "id": "get-signatures",
-            "method": "getSignaturesForAddress",
-            "params": [
-                token_address,
-                {
-                    "limit": 1000
-                }
-            ]
-        }
-
-        timeout = aiohttp.ClientTimeout(total=15)
+        timeout = aiohttp.ClientTimeout(total=60)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.post(url, json=payload) as response:
-                if response.status != 200:
-                    raise HTTPException(status_code=500, detail="Failed to fetch signatures")
+            # Paginate backwards to find the oldest signatures
+            all_signatures = []
+            before_signature = None
+            max_pages = 10  # Fetch up to 10,000 signatures (10 pages of 1000)
 
-                data = await response.json()
-                if "error" in data:
-                    raise HTTPException(status_code=500, detail=data["error"])
+            logger.info(f"Fetching oldest signatures for {token_address[:8]}...")
 
-                signatures = data.get("result", [])
+            for page in range(max_pages):
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": f"get-signatures-{page}",
+                    "method": "getSignaturesForAddress",
+                    "params": [
+                        token_address,
+                        {
+                            "limit": 1000,
+                            **({"before": before_signature} if before_signature else {})
+                        }
+                    ]
+                }
 
-                # Get the oldest signatures (last in the list)
-                oldest_signatures = [sig["signature"] for sig in signatures[-limit:]]
+                async with session.post(url, json=payload) as response:
+                    if response.status != 200:
+                        break
+
+                    data = await response.json()
+                    if "error" in data:
+                        break
+
+                    signatures = data.get("result", [])
+                    if not signatures:
+                        break
+
+                    all_signatures.extend(signatures)
+                    before_signature = signatures[-1]["signature"]
+
+                    logger.info(f"Page {page + 1}: Fetched {len(signatures)} signatures, total: {len(all_signatures)}")
+
+                    # If we got less than 1000, we've reached the beginning
+                    if len(signatures) < 1000:
+                        logger.info(f"Reached the beginning - found {len(all_signatures)} total signatures")
+                        break
+
+            # Get the oldest signatures (last in the list)
+            oldest_signatures = [sig["signature"] for sig in all_signatures[-limit:]]
+            logger.info(f"Analyzing {len(oldest_signatures)} oldest transactions")
 
                 # Fetch transaction details for each signature
                 transfers = []
