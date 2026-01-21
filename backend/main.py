@@ -8,6 +8,7 @@ from config import settings
 from database import init_db
 from api import router
 from services.scheduler import scheduler
+from services.wallet_monitor import wallet_monitor
 
 # Create FastAPI app
 app = FastAPI(
@@ -40,6 +41,10 @@ async def startup():
     scheduler.start()
     logger.info("Auto-sync scheduler initialized (use /api/sync/auto/configure to enable)")
 
+    # Start wallet monitor (runs continuously for monitored wallets)
+    wallet_monitor.start()
+    logger.info("Wallet monitor initialized")
+
 
 @app.on_event("shutdown")
 async def shutdown():
@@ -47,6 +52,8 @@ async def shutdown():
     logger.info("Shutting down SolPnL API...")
     scheduler.stop()
     logger.info("Auto-sync scheduler stopped")
+    wallet_monitor.stop()
+    logger.info("Wallet monitor stopped")
 
 
 @app.get("/")

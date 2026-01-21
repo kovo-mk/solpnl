@@ -1832,3 +1832,66 @@ def _analyze_transactions(wallet_address: str, transactions: list, from_cache: b
         "sample_transactions": transactions[:10],  # Show first 10 as sample
         "from_cache": from_cache
     }
+
+
+
+@router.post("/wallet-monitor/add/{wallet_address}")
+async def add_wallet_to_monitor(wallet_address: str):
+    """
+    Add a wallet to real-time monitoring.
+    
+    The monitor will check for new transactions every minute and automatically
+    update the cache.
+    """
+    from services.wallet_monitor import wallet_monitor
+    
+    wallet_monitor.add_wallet(wallet_address)
+    
+    return {
+        "status": "success",
+        "wallet_address": wallet_address,
+        "monitored_wallets": list(wallet_monitor.monitored_wallets),
+        "message": f"Wallet {wallet_address[:8]}... added to monitor"
+    }
+
+
+@router.post("/wallet-monitor/remove/{wallet_address}")
+async def remove_wallet_from_monitor(wallet_address: str):
+    """Remove a wallet from monitoring."""
+    from services.wallet_monitor import wallet_monitor
+    
+    wallet_monitor.remove_wallet(wallet_address)
+    
+    return {
+        "status": "success",
+        "wallet_address": wallet_address,
+        "monitored_wallets": list(wallet_monitor.monitored_wallets),
+        "message": f"Wallet {wallet_address[:8]}... removed from monitor"
+    }
+
+
+@router.get("/wallet-monitor/status")
+async def get_monitor_status():
+    """Get current wallet monitor status."""
+    from services.wallet_monitor import wallet_monitor
+    
+    return {
+        "is_running": wallet_monitor.is_running,
+        "monitored_wallets": list(wallet_monitor.monitored_wallets),
+        "check_interval_seconds": wallet_monitor.check_interval_seconds
+    }
+
+
+@router.post("/wallet-monitor/configure")
+async def configure_monitor(interval_seconds: int = 60):
+    """Configure wallet monitor settings."""
+    from services.wallet_monitor import wallet_monitor
+    
+    wallet_monitor.configure(interval_seconds=interval_seconds)
+    
+    return {
+        "status": "success",
+        "check_interval_seconds": interval_seconds,
+        "message": f"Monitor will check every {interval_seconds} seconds"
+    }
+
