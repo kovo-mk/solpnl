@@ -68,11 +68,11 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchWallets();
-  }, []);
+  }, [fetchWallets]);
 
   useEffect(() => {
     fetchHistory();
-  }, [selectedWallet, fetchHistory]);
+  }, [fetchHistory]);
 
   const formatAmount = (amount: number) => {
     if (amount >= 1000000) return (amount / 1000000).toFixed(2) + 'M';
