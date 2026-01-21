@@ -25,7 +25,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 type SortField = 'last_trade' | 'unrealized' | 'realized' | 'total_pnl' | 'balance' | 'bought' | 'sold' | 'position';
 type SortDirection = 'asc' | 'desc';
-type TabType = 'recently_traded' | 'live_positions' | 'most_profitable';
+type TabType = 'recently_traded' | 'live_positions' | 'most_profitable' | 'closed_positions';
 type TimePeriod = 'all' | '24h' | '7d' | '30d';
 
 // Helper to shorten wallet addresses
@@ -707,6 +707,16 @@ export default function PnLDashboard() {
                   >
                     Top Gains
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('closed_positions')}
+                    className={cn(
+                      'text-xs md:text-sm font-medium transition-colors whitespace-nowrap',
+                      activeTab === 'closed_positions' ? 'text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                    )}
+                  >
+                    Closed
+                  </button>
                 </div>
 
                 {/* Search Input */}
@@ -944,9 +954,8 @@ export default function PnLDashboard() {
 
                           {/* Realized */}
                           <td className="px-4 py-3 text-right">
-                            {token.current_balance > 0 && token.total_sold === 0 ? (
-                              <p className="text-cyan-400 font-medium">Holding</p>
-                            ) : (
+                            {token.current_balance === 0 && token.total_sold > 0 ? (
+                              // Fully sold
                               <div>
                                 <p className={cn(
                                   'font-medium',
@@ -954,12 +963,30 @@ export default function PnLDashboard() {
                                 )}>
                                   {formatUSD(token.realized_pnl_usd, true)}
                                 </p>
+                                <p className="text-xs text-gray-400">Sold</p>
+                              </div>
+                            ) : token.current_balance > 0 && token.total_sold > 0 ? (
+                              // Partially sold
+                              <div>
                                 <p className={cn(
-                                  'text-xs',
-                                  token.realized_pnl_usd >= 0 ? 'text-green-400/70' : 'text-red-400/70'
+                                  'font-medium',
+                                  token.realized_pnl_usd >= 0 ? 'text-green-400' : 'text-red-400'
                                 )}>
-                                  {token.total_buy_sol > 0 ? formatPercent((token.realized_pnl_sol / token.total_buy_sol) * 100, true) : ''}
+                                  {formatUSD(token.realized_pnl_usd, true)}
                                 </p>
+                                <p className="text-xs text-orange-400">Partially Sold</p>
+                              </div>
+                            ) : token.current_balance > 0 && token.total_sold === 0 ? (
+                              // Never sold
+                              <div>
+                                <p className="text-gray-500 font-medium">$0.00</p>
+                                <p className="text-xs text-cyan-400">Holding</p>
+                              </div>
+                            ) : (
+                              // Edge case
+                              <div>
+                                <p className="text-gray-500 font-medium">$0.00</p>
+                                <p className="text-xs text-gray-500">-</p>
                               </div>
                             )}
                           </td>
@@ -1149,6 +1176,9 @@ function getSortedTokens(tokens: TokenPnL[], tab: TabType, sortField: SortField,
   // Filter by tab
   if (tab === 'live_positions') {
     filtered = tokens.filter(t => t.current_balance > 0);
+  } else if (tab === 'closed_positions') {
+    // Show fully sold positions (no balance remaining)
+    filtered = tokens.filter(t => t.current_balance === 0 && t.total_sold > 0);
   } else if (tab === 'most_profitable') {
     filtered = [...tokens].sort((a, b) => {
       const aPnL = (a.unrealized_pnl_usd || 0) + a.realized_pnl_usd;
