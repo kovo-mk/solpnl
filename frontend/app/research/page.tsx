@@ -161,6 +161,9 @@ export default function ResearchPage() {
   const [showCreatorDistribution, setShowCreatorDistribution] = useState(false);
   const [creatorDistribution, setCreatorDistribution] = useState<any>(null);
   const [loadingCreatorDistribution, setLoadingCreatorDistribution] = useState(false);
+  const [showDeepTrackConfirm, setShowDeepTrackConfirm] = useState(false);
+  const [deepTrackStatus, setDeepTrackStatus] = useState<string | null>(null);
+  const [isDeepTracking, setIsDeepTracking] = useState(false);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -400,6 +403,35 @@ export default function ResearchPage() {
       setShowCreatorDistribution(true);
     } finally {
       setLoadingCreatorDistribution(false);
+    }
+  };
+
+  const handleDeepTrack = async (tokenAddress: string) => {
+    setIsDeepTracking(true);
+    setDeepTrackStatus('Starting backfill...');
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const response = await fetch(`${API_BASE}/research/deep-track/${tokenAddress}`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        setDeepTrackStatus(`Error: ${data.error}`);
+      } else {
+        setDeepTrackStatus(`Success! Backfilled ${data.transfers_count || 0} transfers`);
+        // Refresh the page data to show new transfers
+        setTimeout(() => {
+          setShowDeepTrackConfirm(false);
+          setDeepTrackStatus(null);
+        }, 3000);
+      }
+    } catch (err) {
+      console.error('Error during deep track:', err);
+      setDeepTrackStatus('Failed to backfill transfers');
+    } finally {
+      setIsDeepTracking(false);
     }
   };
 
@@ -824,6 +856,22 @@ export default function ResearchPage() {
                     ) : (
                       <>
                         👤 Creator Wallet
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowDeepTrackConfirm(true)}
+                    disabled={isDeepTracking}
+                    className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isDeepTracking ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                        Tracking...
+                      </>
+                    ) : (
+                      <>
+                        🔍 Deep Track
                       </>
                     )}
                   </button>
@@ -2424,6 +2472,102 @@ export default function ResearchPage() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Deep Track Confirmation Modal */}
+        {showDeepTrackConfirm && report && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !isDeepTracking && setShowDeepTrackConfirm(false)}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+                ⚠️ Deep Track Token
+              </h2>
+
+              {!deepTrackStatus ? (
+                <>
+                  <div className="mb-6 space-y-3">
+                    <p className="text-gray-700 dark:text-gray-300">
+                      This will backfill <strong>ALL historical transfers</strong> for this token from the blockchain.
+                    </p>
+
+                    <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border border-orange-200 dark:border-orange-700">
+                      <h4 className="font-semibold text-orange-900 dark:text-orange-300 mb-2">📊 What This Does</h4>
+                      <ul className="text-sm text-orange-800 dark:text-orange-200 space-y-1">
+                        <li>• Fetches every token transfer since creation</li>
+                        <li>• Improves accuracy of mint/creator wallet analysis</li>
+                        <li>• Shows true initial distribution patterns</li>
+                        <li>• May take 30-60 seconds for busy tokens</li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-700">
+                      <h4 className="font-semibold text-yellow-900 dark:text-yellow-300 mb-2">💰 API Cost Warning</h4>
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        Busy tokens may consume significant API credits. Estimated cost for this token: <strong>~0.1-0.5%</strong> of monthly allowance.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeepTrackConfirm(false)}
+                      className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeepTrack(report.token_address)}
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-semibold rounded-lg transition-all shadow-md"
+                    >
+                      Confirm Deep Track
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mb-6">
+                    {isDeepTracking ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-600 border-t-transparent"></div>
+                      </div>
+                    ) : deepTrackStatus?.includes('Success') ? (
+                      <div className="text-center py-6">
+                        <div className="text-6xl mb-4">✅</div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <div className="text-6xl mb-4">❌</div>
+                      </div>
+                    )}
+
+                    <p className={`text-center text-lg font-semibold ${
+                      deepTrackStatus?.includes('Success')
+                        ? 'text-green-600 dark:text-green-400'
+                        : deepTrackStatus?.includes('Error')
+                        ? 'text-red-600 dark:text-red-400'
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      {deepTrackStatus}
+                    </p>
+                  </div>
+
+                  {!isDeepTracking && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDeepTrackConfirm(false);
+                        setDeepTrackStatus(null);
+                      }}
+                      className="w-full px-4 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg transition-colors"
+                    >
+                      Close
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}

@@ -900,15 +900,70 @@ async def get_mint_distribution(token_address: str):
 
 
 @router.get("/token-initial-transfers/{token_address}")
-async def get_token_initial_transfers(token_address: str, limit: int = 10):
+async def get_token_initial_transfers(token_address: str, limit: int = 10, db: Session = Depends(get_db)):
     """
-    Get the ACTUAL first N token transfers using Solscan API.
+    Get the ACTUAL first N token transfers.
 
+    Checks cache first (if Deep Track was used), otherwise fetches from Solscan API.
     Uses sort_by=block_time with sort_order=asc to get oldest transfers first.
-    Much faster than blockchain pagination.
     """
     try:
-        # Use Solscan Pro API - it can sort by block_time ascending!
+        from database.models import SolscanTransferCache
+
+        # Check cache first
+        cache_entry = db.query(SolscanTransferCache).filter(
+            SolscanTransferCache.token_address == token_address
+        ).first()
+
+        if cache_entry:
+            logger.info(f"Using cached transfers for {token_address[:8]} ({cache_entry.transfer_count} total, is_complete={cache_entry.is_complete})")
+
+            # Parse cached transfers
+            all_transfers = json.loads(cache_entry.transfers_json)
+
+            # Get first N transfers (already sorted oldest first from Deep Track)
+            transfer_data = all_transfers[:min(limit * 2, len(all_transfers))]
+
+            # Convert to our format
+            transfers = []
+            for transfer in transfer_data:
+                from_addr = transfer.get("from_address")
+                to_addr = transfer.get("to_address")
+                amount = float(transfer.get("amount", 0))
+                decimals = transfer.get("decimals", 9)
+                adjusted_amount = amount / (10 ** decimals)
+                block_time = transfer.get("block_time")
+                signature = transfer.get("trans_id")
+
+                # Add both sender (negative) and receiver (positive)
+                if from_addr:
+                    transfers.append({
+                        "signature": signature,
+                        "timestamp": block_time,
+                        "account": from_addr,
+                        "change": -adjusted_amount,
+                        "post_balance": None
+                    })
+
+                if to_addr:
+                    transfers.append({
+                        "signature": signature,
+                        "timestamp": block_time,
+                        "account": to_addr,
+                        "change": adjusted_amount,
+                        "post_balance": None
+                    })
+
+            return {
+                "token_address": token_address,
+                "transfers": transfers[:limit * 2],
+                "from_cache": True,
+                "cache_complete": cache_entry.is_complete
+            }
+
+        # No cache - fetch from Solscan API
+        logger.info(f"No cache found for {token_address[:8]}, fetching from Solscan API")
+
         solscan_url = "https://pro-api.solscan.io/v2.0/token/transfer"
 
         params = {
@@ -970,7 +1025,9 @@ async def get_token_initial_transfers(token_address: str, limit: int = 10):
 
                 return {
                     "token_address": token_address,
-                    "transfers": transfers[:limit * 2]
+                    "transfers": transfers[:limit * 2],
+                    "from_cache": False,
+                    "cache_complete": False
                 }
 
     except HTTPException:
@@ -1035,4 +1092,153 @@ async def get_creator_distribution(token_address: str):
         raise
     except Exception as e:
         logger.error(f"Error analyzing creator distribution: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/deep-track/{token_address}")
+async def deep_track_token(token_address: str, db: Session = Depends(get_db)):
+    """
+    Backfill ALL historical transfers for a token using Solscan Pro API.
+
+    This is an expensive operation that:
+    1. Fetches all transfers from token creation to present
+    2. Stores them in solscan_transfer_cache for future use
+    3. Improves accuracy of initial transfer analysis
+
+    WARNING: May consume significant API credits on busy tokens.
+    """
+    try:
+        from database.models import SolscanTransferCache
+
+        # Check if already fully backfilled
+        existing = db.query(SolscanTransferCache).filter(
+            SolscanTransferCache.token_address == token_address,
+            SolscanTransferCache.is_complete == True
+        ).first()
+
+        if existing:
+            logger.info(f"Token {token_address[:8]} already has complete backfill ({existing.transfer_count} transfers)")
+            return {
+                "success": True,
+                "message": "Token already fully tracked",
+                "transfers_count": existing.transfer_count,
+                "earliest_timestamp": existing.earliest_timestamp,
+                "latest_timestamp": existing.latest_timestamp,
+                "cached_at": existing.cached_at.isoformat()
+            }
+
+        # Fetch all transfers using direct Solscan API calls
+        all_transfers = []
+        page = 1
+        page_size = 100  # Max per Solscan API
+
+        logger.info(f"Starting deep track for {token_address[:8]}...")
+
+        headers = {
+            "token": settings.SOLSCAN_API_KEY,
+            "accept": "application/json"
+        }
+
+        timeout = aiohttp.ClientTimeout(total=30)
+
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            while True:
+                url = f"https://pro-api.solscan.io/v2.0/token/transfer"
+                params = {
+                    "address": token_address,
+                    "page": page,
+                    "page_size": page_size,
+                    "sort_by": "block_time",
+                    "sort_order": "asc",  # Oldest first for backfill
+                    "exclude_amount_zero": "true"
+                }
+
+                logger.info(f"Fetching page {page}...")
+
+                async with session.get(url, headers=headers, params=params) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Solscan API error: {response.status} - {error_text}")
+                        break
+
+                    data = await response.json()
+
+                    if not data.get("success"):
+                        logger.error(f"Solscan request failed: {data}")
+                        break
+
+                    transfers = data.get("data", [])
+
+                    if not transfers:
+                        logger.info(f"No more transfers found at page {page}")
+                        break
+
+                    all_transfers.extend(transfers)
+                    logger.info(f"Fetched page {page}: {len(transfers)} transfers (total: {len(all_transfers)})")
+
+                    # Stop if we got fewer results than requested (last page)
+                    if len(transfers) < page_size:
+                        logger.info(f"Last page reached (got {len(transfers)} < {page_size})")
+                        break
+
+                    page += 1
+
+                    # Safety limit to prevent runaway costs
+                    if page > 2000:  # 200K transfers max
+                        logger.warning(f"Hit safety limit at 2000 pages (200K transfers)")
+                        break
+
+                    # Rate limiting
+                    await asyncio.sleep(0.1)
+
+        if not all_transfers:
+            raise HTTPException(status_code=404, detail="No transfers found for this token")
+
+        # Calculate metadata
+        timestamps = [t.get("block_time", 0) for t in all_transfers if t.get("block_time")]
+        earliest_ts = min(timestamps) if timestamps else 0
+        latest_ts = max(timestamps) if timestamps else 0
+
+        # Store in cache
+        if existing:
+            # Update existing cache
+            existing.transfers_json = json.dumps(all_transfers)
+            existing.transfer_count = len(all_transfers)
+            existing.earliest_timestamp = earliest_ts
+            existing.latest_timestamp = latest_ts
+            existing.is_complete = True
+            existing.cached_at = datetime.now(timezone.utc)
+            existing.expires_at = datetime.now(timezone.utc) + timedelta(days=3650)  # 10 years
+        else:
+            # Create new cache entry
+            cache_entry = SolscanTransferCache(
+                token_address=token_address,
+                transfers_json=json.dumps(all_transfers),
+                transfer_count=len(all_transfers),
+                earliest_timestamp=earliest_ts,
+                latest_timestamp=latest_ts,
+                is_complete=True,
+                cached_at=datetime.now(timezone.utc),
+                expires_at=datetime.now(timezone.utc) + timedelta(days=3650)
+            )
+            db.add(cache_entry)
+
+        db.commit()
+
+        logger.info(f"✅ Deep track complete for {token_address[:8]}: {len(all_transfers)} transfers backfilled")
+
+        return {
+            "success": True,
+            "message": "Successfully backfilled all transfers",
+            "transfers_count": len(all_transfers),
+            "pages_fetched": page,
+            "earliest_timestamp": earliest_ts,
+            "latest_timestamp": latest_ts,
+            "api_cost_estimate": f"{page * 100:,} C.U."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during deep track: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
