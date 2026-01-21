@@ -2797,6 +2797,117 @@ export default function ResearchPage() {
                           )}
                         </div>
 
+                        {/* Profit Analysis */}
+                        {walletAnalysisData.profit_analysis && !walletAnalysisData.profit_analysis.error && (
+                          <div className="mb-6 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg p-6 border border-green-200 dark:border-green-700">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                              💰 Profit & Loss Analysis
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">SOL Spent</div>
+                                <div className="text-lg font-bold text-red-600 dark:text-red-400">
+                                  {walletAnalysisData.profit_analysis.sol_spent.toFixed(4)} SOL
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  ${(walletAnalysisData.profit_analysis.sol_spent * walletAnalysisData.profit_analysis.sol_price_usd).toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">SOL Received</div>
+                                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                                  {walletAnalysisData.profit_analysis.sol_received.toFixed(4)} SOL
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  ${(walletAnalysisData.profit_analysis.sol_received * walletAnalysisData.profit_analysis.sol_price_usd).toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Realized P&L</div>
+                                <div className={`text-lg font-bold ${
+                                  walletAnalysisData.profit_analysis.realized_profit_sol >= 0
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-red-600 dark:text-red-400'
+                                }`}>
+                                  {walletAnalysisData.profit_analysis.realized_profit_sol >= 0 ? '+' : ''}
+                                  {walletAnalysisData.profit_analysis.realized_profit_sol.toFixed(4)} SOL
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  ${walletAnalysisData.profit_analysis.realized_profit_usd.toFixed(2)}
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Unrealized P&L</div>
+                                <div className={`text-lg font-bold ${
+                                  walletAnalysisData.profit_analysis.unrealized_profit_sol >= 0
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-orange-600 dark:text-orange-400'
+                                }`}>
+                                  {walletAnalysisData.profit_analysis.unrealized_profit_sol >= 0 ? '+' : ''}
+                                  {walletAnalysisData.profit_analysis.unrealized_profit_sol.toFixed(4)} SOL
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  ${walletAnalysisData.profit_analysis.unrealized_profit_usd.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className={`rounded-lg p-4 border-2 ${
+                                walletAnalysisData.profit_analysis.total_profit_sol >= 0
+                                  ? 'bg-green-100 dark:bg-green-900/30 border-green-500'
+                                  : 'bg-red-100 dark:bg-red-900/30 border-red-500'
+                              }`}>
+                                <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Total Profit/Loss</div>
+                                <div className={`text-2xl font-bold ${
+                                  walletAnalysisData.profit_analysis.total_profit_sol >= 0
+                                    ? 'text-green-700 dark:text-green-300'
+                                    : 'text-red-700 dark:text-red-300'
+                                }`}>
+                                  {walletAnalysisData.profit_analysis.total_profit_sol >= 0 ? '+' : ''}
+                                  {walletAnalysisData.profit_analysis.total_profit_sol.toFixed(4)} SOL
+                                </div>
+                                <div className="text-lg font-semibold text-gray-600 dark:text-gray-400 mt-1">
+                                  ${walletAnalysisData.profit_analysis.total_profit_usd.toFixed(2)} USD
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">ROI</div>
+                                <div className={`text-2xl font-bold ${
+                                  walletAnalysisData.profit_analysis.roi_percent >= 0
+                                    ? 'text-green-700 dark:text-green-300'
+                                    : 'text-red-700 dark:text-red-300'
+                                }`}>
+                                  {walletAnalysisData.profit_analysis.roi_percent >= 0 ? '+' : ''}
+                                  {walletAnalysisData.profit_analysis.roi_percent.toFixed(2)}%
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Current Token Price</div>
+                                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                                  ${walletAnalysisData.profit_analysis.current_token_price_usd?.toFixed(8) || 'N/A'}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  SOL @ ${walletAnalysisData.profit_analysis.sol_price_usd}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                              <strong>Avg Buy Price:</strong> {walletAnalysisData.profit_analysis.average_buy_price_sol.toFixed(8)} SOL/token
+                              {walletAnalysisData.profit_analysis.average_sell_price_sol > 0 && (
+                                <> | <strong>Avg Sell Price:</strong> {walletAnalysisData.profit_analysis.average_sell_price_sol.toFixed(8)} SOL/token</>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {walletAnalysisData.profit_analysis?.error && (
+                          <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-700">
+                            <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                              ⚠️ Could not calculate profit: {walletAnalysisData.profit_analysis.error}
+                            </p>
+                          </div>
+                        )}
+
                         {/* Transactions List */}
                         <div className="mb-4">
                           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3">

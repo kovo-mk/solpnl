@@ -1245,19 +1245,31 @@ async def deep_track_token(token_address: str, db: Session = Depends(get_db)):
 
 
 @router.get("/wallet-trading-history/{token_address}/{wallet_address}")
-async def get_wallet_trading_history(token_address: str, wallet_address: str, db: Session = Depends(get_db)):
+async def get_wallet_trading_history(
+    token_address: str,
+    wallet_address: str,
+    calculate_profit: bool = True,
+    db: Session = Depends(get_db)
+):
     """
     Analyze a specific wallet's complete trading history for a token.
 
     Shows:
     - All buys and sells
-    - Total profit/loss
+    - Total profit/loss (if calculate_profit=True)
     - Entry and exit prices
     - Whether they're still holding
     - Pattern analysis (early buyer -> dumper?)
+
+    Args:
+        token_address: Token mint address
+        wallet_address: Wallet address to analyze
+        calculate_profit: If True, fetches SOL balance changes from Helius for P&L calculation
     """
     try:
         from database.models import SolscanTransferCache
+        from services.helius import HeliusService
+        from services.price import price_service
 
         # Check if we have cached transfers
         cache_entry = db.query(SolscanTransferCache).filter(
@@ -1276,6 +1288,8 @@ async def get_wallet_trading_history(token_address: str, wallet_address: str, db
 
         # Filter transfers involving this wallet
         wallet_transfers = []
+        transaction_signatures = set()  # Track unique transaction signatures
+
         for transfer in all_transfers:
             from_addr = transfer.get("from_address")
             to_addr = transfer.get("to_address")
@@ -1284,28 +1298,31 @@ async def get_wallet_trading_history(token_address: str, wallet_address: str, db
                 amount = float(transfer.get("amount", 0))
                 decimals = transfer.get("decimals", 6)
                 adjusted_amount = amount / (10 ** decimals)
+                signature = transfer.get("trans_id")
 
                 # Determine if this is a buy or sell for this wallet
                 if to_addr == wallet_address:
                     # Wallet received tokens = BUY
                     wallet_transfers.append({
-                        "signature": transfer.get("trans_id"),
+                        "signature": signature,
                         "timestamp": transfer.get("block_time"),
                         "type": "BUY",
                         "amount": adjusted_amount,
                         "from": from_addr,
                         "to": to_addr
                     })
+                    transaction_signatures.add(signature)
                 elif from_addr == wallet_address:
                     # Wallet sent tokens = SELL
                     wallet_transfers.append({
-                        "signature": transfer.get("trans_id"),
+                        "signature": signature,
                         "timestamp": transfer.get("block_time"),
                         "type": "SELL",
                         "amount": adjusted_amount,
                         "from": from_addr,
                         "to": to_addr
                     })
+                    transaction_signatures.add(signature)
 
         # Sort by timestamp
         wallet_transfers.sort(key=lambda x: x["timestamp"])
@@ -1347,7 +1364,8 @@ async def get_wallet_trading_history(token_address: str, wallet_address: str, db
         first_tx_timestamp = first_tx["timestamp"]
         is_early_buyer = (first_tx_timestamp - earliest_timestamp) < 3600  # Within 1 hour
 
-        return {
+        # Base response
+        response = {
             "token_address": token_address,
             "wallet_address": wallet_address,
             "transactions": wallet_transfers[:100],  # Limit to first 100 for performance
@@ -1363,6 +1381,142 @@ async def get_wallet_trading_history(token_address: str, wallet_address: str, db
             "buy_count": len([t for t in wallet_transfers if t["type"] == "BUY"]),
             "sell_count": len([t for t in wallet_transfers if t["type"] == "SELL"]),
         }
+
+        # Calculate profit/loss if requested
+        if calculate_profit and len(transaction_signatures) > 0:
+            logger.info(f"Calculating profit for {len(transaction_signatures)} transactions")
+
+            # Initialize Helius service
+            helius = HeliusService()
+
+            # Fetch full transaction details for SOL balance changes
+            # We need to get the actual transactions to see SOL spent/received
+            sol_spent = 0.0
+            sol_received = 0.0
+
+            # Process transactions in batches to get SOL balance changes
+            try:
+                # For each transaction signature, we need to fetch the full transaction
+                # and calculate the SOL balance change
+                signature_list = list(transaction_signatures)[:100]  # Limit to 100 for performance
+
+                logger.info(f"Fetching Helius transactions for {len(signature_list)} signatures")
+
+                # Fetch transactions using Helius RPC
+                async with aiohttp.ClientSession() as session:
+                    for sig in signature_list:
+                        try:
+                            # Use Helius RPC to get parsed transaction
+                            payload = {
+                                "jsonrpc": "2.0",
+                                "id": 1,
+                                "method": "getTransaction",
+                                "params": [
+                                    sig,
+                                    {
+                                        "encoding": "jsonParsed",
+                                        "maxSupportedTransactionVersion": 0
+                                    }
+                                ]
+                            }
+
+                            timeout = aiohttp.ClientTimeout(total=10)
+                            async with session.post(helius.rpc_url, json=payload, timeout=timeout) as resp:
+                                if resp.status == 200:
+                                    data = await resp.json()
+                                    tx_data = data.get("result")
+
+                                    if tx_data:
+                                        # Calculate SOL balance change for this wallet
+                                        pre_balances = tx_data.get("meta", {}).get("preBalances", [])
+                                        post_balances = tx_data.get("meta", {}).get("postBalances", [])
+                                        account_keys = tx_data.get("transaction", {}).get("message", {}).get("accountKeys", [])
+
+                                        # Find wallet's position in account keys
+                                        wallet_index = -1
+                                        for i, key in enumerate(account_keys):
+                                            if isinstance(key, dict):
+                                                pubkey = key.get("pubkey")
+                                            else:
+                                                pubkey = key
+
+                                            if pubkey == wallet_address:
+                                                wallet_index = i
+                                                break
+
+                                        if wallet_index >= 0 and wallet_index < len(pre_balances) and wallet_index < len(post_balances):
+                                            pre_balance = pre_balances[wallet_index] / 1e9  # lamports to SOL
+                                            post_balance = post_balances[wallet_index] / 1e9
+                                            sol_change = post_balance - pre_balance
+
+                                            # Determine if this was a buy or sell based on our transfer data
+                                            tx_type = None
+                                            for transfer in wallet_transfers:
+                                                if transfer["signature"] == sig:
+                                                    tx_type = transfer["type"]
+                                                    break
+
+                                            if tx_type == "BUY" and sol_change < 0:
+                                                # Wallet spent SOL to buy tokens
+                                                sol_spent += abs(sol_change)
+                                            elif tx_type == "SELL" and sol_change > 0:
+                                                # Wallet received SOL from selling tokens
+                                                sol_received += sol_change
+
+                                            logger.debug(f"Transaction {sig[:8]}: {tx_type}, SOL change: {sol_change:.4f}")
+
+                        except Exception as e:
+                            logger.warning(f"Error fetching transaction {sig[:8]}: {e}")
+                            continue
+
+                        # Small delay to avoid rate limiting
+                        await asyncio.sleep(0.05)
+
+                # Get current token price
+                current_price = await price_service.get_token_price(token_address)
+
+                # Get SOL price for USD calculations
+                sol_price_usd = await price_service.get_sol_price()
+
+                # Calculate profit metrics
+                realized_profit_sol = sol_received - sol_spent
+
+                # Calculate unrealized profit (tokens still held)
+                unrealized_profit_sol = 0.0
+                if net_position > 0 and current_price:
+                    # Current value of held tokens in USD
+                    current_value_usd = net_position * current_price
+                    # Convert to SOL
+                    unrealized_profit_sol = current_value_usd / sol_price_usd
+
+                total_profit_sol = realized_profit_sol + unrealized_profit_sol
+
+                # Add profit data to response
+                response["profit_analysis"] = {
+                    "sol_spent": round(sol_spent, 4),
+                    "sol_received": round(sol_received, 4),
+                    "realized_profit_sol": round(realized_profit_sol, 4),
+                    "realized_profit_usd": round(realized_profit_sol * sol_price_usd, 2),
+                    "unrealized_profit_sol": round(unrealized_profit_sol, 4),
+                    "unrealized_profit_usd": round(unrealized_profit_sol * sol_price_usd, 2),
+                    "total_profit_sol": round(total_profit_sol, 4),
+                    "total_profit_usd": round(total_profit_sol * sol_price_usd, 2),
+                    "current_token_price_usd": current_price,
+                    "sol_price_usd": round(sol_price_usd, 2),
+                    "average_buy_price_sol": round(sol_spent / total_bought, 8) if total_bought > 0 else 0,
+                    "average_sell_price_sol": round(sol_received / total_sold, 8) if total_sold > 0 else 0,
+                    "roi_percent": round((total_profit_sol / sol_spent * 100), 2) if sol_spent > 0 else 0
+                }
+
+                logger.info(f"Profit calculation complete: {total_profit_sol:.4f} SOL (${total_profit_sol * sol_price_usd:.2f})")
+
+            except Exception as e:
+                logger.error(f"Error calculating profit: {e}", exc_info=True)
+                response["profit_analysis"] = {
+                    "error": f"Failed to calculate profit: {str(e)}"
+                }
+
+        return response
 
     except HTTPException:
         raise
