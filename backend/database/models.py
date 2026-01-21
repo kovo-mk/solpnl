@@ -421,6 +421,32 @@ class SolscanTransferCache(Base):
     )
 
 
+class WalletTransactionCache(Base):
+    """Cache for complete wallet transaction history from Helius API."""
+    __tablename__ = "wallet_transaction_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    wallet_address = Column(String(255), nullable=False, index=True)
+
+    # Transaction data (stored as JSON string)
+    transactions_json = Column(Text, nullable=False)  # Enhanced Helius transaction data
+
+    # Cache metadata
+    transaction_count = Column(Integer, nullable=False)  # Number of transactions cached
+    earliest_timestamp = Column(Integer, nullable=True)  # Unix timestamp of oldest transaction
+    latest_timestamp = Column(Integer, nullable=True)  # Unix timestamp of newest transaction
+
+    # Cache validity
+    cached_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False)  # When to invalidate cache
+    is_complete = Column(Boolean, default=False)  # True if we fetched all available transactions
+
+    __table_args__ = (
+        Index('ix_wallet_tx_cache_wallet_cached', 'wallet_address', 'cached_at'),
+        Index('ix_wallet_tx_cache_expires', 'expires_at'),
+    )
+
+
 class NewTokenFeed(Base):
     """Feed of newly created tokens from Solscan for monitoring."""
     __tablename__ = "new_token_feed"

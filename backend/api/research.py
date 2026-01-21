@@ -1637,24 +1637,27 @@ async def get_wallet_full_history(
 @router.post("/wallet-complete-history/{wallet_address}")
 async def fetch_wallet_complete_history(
     wallet_address: str,
-    limit: int = 1000
+    force_refresh: bool = False,
+    db: Session = Depends(get_db)
 ):
     """
-    Fetch COMPLETE wallet token transfer history using Helius getTransactionsForAddress.
+    Fetch COMPLETE wallet transaction history using Helius Enhanced Transactions API.
 
-    Uses Helius RPC with tokenAccounts filter to get ALL token transfers in a single efficient call.
-    This is much faster than paginating through Solscan.
+    Fetches ALL transactions (not just token transfers) with pagination support.
+    Results are cached for 1 hour to reduce API costs.
 
     Args:
         wallet_address: Solana wallet address
-        limit: Max transactions to fetch (default 1000)
+        force_refresh: If true, bypass cache and fetch fresh data
 
     Returns:
-        Summary of all wallet token transfer activity
+        Complete transaction history with summary stats
     """
     try:
         from services.helius import HeliusService
+        from database.models import WalletTransactionCache
         from config import settings
+        import json
 
         if not settings.HELIUS_API_KEY:
             raise HTTPException(
@@ -1662,87 +1665,151 @@ async def fetch_wallet_complete_history(
                 detail="Helius API key not configured"
             )
 
-        logger.info(f"Fetching complete token transfer history for {wallet_address[:8]} using Helius...")
+        # Check cache first (unless force_refresh)
+        if not force_refresh:
+            cache_entry = db.query(WalletTransactionCache).filter(
+                WalletTransactionCache.wallet_address == wallet_address,
+                WalletTransactionCache.expires_at > datetime.utcnow()
+            ).first()
+
+            if cache_entry:
+                logger.info(f"Using cached transactions for {wallet_address[:8]} ({cache_entry.transaction_count} txns)")
+                transactions = json.loads(cache_entry.transactions_json)
+
+                # Analyze and return
+                return _analyze_transactions(wallet_address, transactions, from_cache=True)
+
+        logger.info(f"Fetching complete transaction history for {wallet_address[:8]} using Helius...")
 
         helius = HeliusService()
+        all_transactions = []
+        before_signature = None
+        page = 0
+        MAX_PAGES = 100  # Safety limit (10,000 transactions max)
 
-        # Use Helius Enhanced Transaction API (Developer API, not RPC)
-        # This returns properly parsed transaction data with tokenTransfers
-        # Much cleaner than raw RPC getSignaturesForAddress
-        timeout = aiohttp.ClientTimeout(total=60)
+        timeout = aiohttp.ClientTimeout(total=30)
 
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            # Use the Developer API endpoint for parsed transactions
-            url = f"{helius.base_url}/v0/addresses/{wallet_address}/transactions"
-            params = {
-                "api-key": helius.api_key,
-                "limit": min(limit, 100),  # Max 100 per request
-                # No type filter - get ALL transaction types (swaps, transfers, etc.)
-            }
+            while page < MAX_PAGES:
+                url = f"{helius.base_url}/v0/addresses/{wallet_address}/transactions"
+                params = {
+                    "api-key": helius.api_key,
+                    "limit": 100,  # Max 100 per request
+                }
+                if before_signature:
+                    params["before"] = before_signature
 
-            async with session.get(url, params=params) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    logger.error(f"Helius API error: {response.status} - {error_text[:500]}")
-                    raise HTTPException(status_code=500, detail=f"Helius API error: {response.status}")
+                async with session.get(url, params=params) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Helius API error: {response.status} - {error_text[:500]}")
+                        break
 
-                transactions = await response.json()
+                    batch = await response.json()
 
-        logger.info(f"Fetched {len(transactions)} transactions for {wallet_address[:8]}")
+                if not batch or len(batch) == 0:
+                    logger.info(f"No more transactions, stopping at page {page}")
+                    break
 
-        # Debug: Check what type of data we got
-        if transactions and len(transactions) > 0:
-            logger.info(f"First transaction type: {type(transactions[0])}")
-            if isinstance(transactions[0], dict):
-                logger.info(f"First transaction keys: {list(transactions[0].keys())[:10]}")
+                all_transactions.extend(batch)
+                page += 1
+                logger.info(f"Fetched page {page}: {len(batch)} transactions (total: {len(all_transactions)})")
+
+                # Pagination: use last transaction signature as cursor
+                if len(batch) < 100:
+                    # Less than full page = we got everything
+                    logger.info(f"Received partial page ({len(batch)}), fetching complete")
+                    break
+
+                before_signature = batch[-1].get("signature")
+
+                # Rate limiting
+                await asyncio.sleep(0.3)
+
+        logger.info(f"Fetched {len(all_transactions)} total transactions across {page} pages")
+
+        # Save to cache (expires in 1 hour)
+        if all_transactions:
+            transactions_json = json.dumps(all_transactions)
+
+            # Check if entry exists
+            existing_cache = db.query(WalletTransactionCache).filter(
+                WalletTransactionCache.wallet_address == wallet_address
+            ).first()
+
+            if existing_cache:
+                # Update existing
+                existing_cache.transactions_json = transactions_json
+                existing_cache.transaction_count = len(all_transactions)
+                existing_cache.cached_at = datetime.utcnow()
+                existing_cache.expires_at = datetime.utcnow() + timedelta(hours=1)
+                existing_cache.is_complete = (page < MAX_PAGES and len(all_transactions[-1] if all_transactions else []) < 100)
+
+                # Update timestamps
+                timestamps = [tx.get("timestamp") for tx in all_transactions if tx.get("timestamp")]
+                if timestamps:
+                    existing_cache.earliest_timestamp = min(timestamps)
+                    existing_cache.latest_timestamp = max(timestamps)
             else:
-                logger.warning(f"Transaction is not a dict, it's: {transactions[0][:100] if isinstance(transactions[0], str) else transactions[0]}")
+                # Create new
+                timestamps = [tx.get("timestamp") for tx in all_transactions if tx.get("timestamp")]
+                new_cache = WalletTransactionCache(
+                    wallet_address=wallet_address,
+                    transactions_json=transactions_json,
+                    transaction_count=len(all_transactions),
+                    earliest_timestamp=min(timestamps) if timestamps else None,
+                    latest_timestamp=max(timestamps) if timestamps else None,
+                    expires_at=datetime.utcnow() + timedelta(hours=1),
+                    is_complete=(page < MAX_PAGES)
+                )
+                db.add(new_cache)
 
-        # Analyze token transfers
-        token_mints_seen = set()
-        tx_types = {}
-        token_transfer_count = 0
+            db.commit()
+            logger.info(f"Saved {len(all_transactions)} transactions to cache for {wallet_address[:8]}")
 
-        for tx in transactions:
-            # Handle both dict (enhanced) and string (signature) responses
-            if isinstance(tx, str):
-                # Just a signature, skip detailed analysis
-                tx_types["SIGNATURE_ONLY"] = tx_types.get("SIGNATURE_ONLY", 0) + 1
-                continue
-
-            if not isinstance(tx, dict):
-                logger.warning(f"Unexpected transaction type: {type(tx)}")
-                continue
-
-            tx_type = tx.get("type", "UNKNOWN")
-            tx_types[tx_type] = tx_types.get(tx_type, 0) + 1
-
-            # Track token transfers
-            token_transfers = tx.get("tokenTransfers", [])
-            token_transfer_count += len(token_transfers)
-
-            for transfer in token_transfers:
-                mint = transfer.get("mint")
-                if mint:
-                    token_mints_seen.add(mint)
-
-        first_tx_time = transactions[0].get("timestamp") if transactions and isinstance(transactions[0], dict) else None
-        last_tx_time = transactions[-1].get("timestamp") if transactions and isinstance(transactions[-1], dict) else None
-
-        return {
-            "wallet_address": wallet_address,
-            "total_transactions": len(transactions),
-            "token_transfers": token_transfer_count,
-            "unique_tokens": len(token_mints_seen),
-            "transaction_types": tx_types,
-            "first_transaction_time": first_tx_time,
-            "last_transaction_time": last_tx_time,
-            "tokens_seen": list(token_mints_seen)[:20],  # Show first 20 tokens
-            "sample_transactions": transactions[:5]  # Show first 5 as sample
-        }
+        return _analyze_transactions(wallet_address, all_transactions, from_cache=False)
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error fetching complete wallet history: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _analyze_transactions(wallet_address: str, transactions: list, from_cache: bool = False) -> dict:
+    """Analyze transaction list and return summary statistics."""
+    token_mints_seen = set()
+    tx_types = {}
+    token_transfer_count = 0
+
+    for tx in transactions:
+        if not isinstance(tx, dict):
+            continue
+
+        tx_type = tx.get("type", "UNKNOWN")
+        tx_types[tx_type] = tx_types.get(tx_type, 0) + 1
+
+        # Track token transfers
+        token_transfers = tx.get("tokenTransfers", [])
+        token_transfer_count += len(token_transfers)
+
+        for transfer in token_transfers:
+            mint = transfer.get("mint")
+            if mint:
+                token_mints_seen.add(mint)
+
+    first_tx_time = transactions[0].get("timestamp") if transactions and isinstance(transactions[0], dict) else None
+    last_tx_time = transactions[-1].get("timestamp") if transactions and isinstance(transactions[-1], dict) else None
+
+    return {
+        "wallet_address": wallet_address,
+        "total_transactions": len(transactions),
+        "token_transfers": token_transfer_count,
+        "unique_tokens": len(token_mints_seen),
+        "transaction_types": tx_types,
+        "first_transaction_time": first_tx_time,
+        "last_transaction_time": last_tx_time,
+        "tokens_seen": list(token_mints_seen)[:50],  # Show first 50 tokens
+        "sample_transactions": transactions[:10],  # Show first 10 as sample
+        "from_cache": from_cache
+    }
