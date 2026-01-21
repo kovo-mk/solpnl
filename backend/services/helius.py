@@ -1406,6 +1406,33 @@ class HeliusService:
             logger.info(f"  - Transferred: {transferred_to_wallets:,.0f} ({transferred_pct:.1f}%)")
             logger.info(f"  - Burned: {burned:,.0f} ({burned_pct:.1f}%)")
 
+            # Aggregate recipients by wallet address
+            recipient_summary = {}
+            for event in distribution_events:
+                if event["category"] == "transfer":  # Only regular transfers, not DEX/burns
+                    addr = event["to_address"]
+                    if addr not in recipient_summary:
+                        recipient_summary[addr] = {
+                            "address": addr,
+                            "total_received": 0,
+                            "transaction_count": 0,
+                            "first_transfer": event["timestamp"],
+                            "last_transfer": event["timestamp"]
+                        }
+                    recipient_summary[addr]["total_received"] += event["amount"]
+                    recipient_summary[addr]["transaction_count"] += 1
+                    recipient_summary[addr]["last_transfer"] = max(
+                        recipient_summary[addr]["last_transfer"],
+                        event["timestamp"]
+                    )
+
+            # Sort recipients by amount received (descending)
+            top_recipients = sorted(
+                recipient_summary.values(),
+                key=lambda x: x["total_received"],
+                reverse=True
+            )
+
             return {
                 "wallet_address": wallet_address,
                 "wallet_label": wallet_label,
@@ -1419,6 +1446,7 @@ class HeliusService:
                 "burned_pct": burned_pct,
                 "transaction_count": len(distribution_events),
                 "transactions": distribution_events[:50],  # Limit to 50 most recent
+                "top_recipients": top_recipients[:10],  # Top 10 recipients by amount
             }
 
         except Exception as e:
@@ -1473,6 +1501,7 @@ class HeliusService:
             "burned_pct": 0,
             "transaction_count": 0,
             "transactions": [],
+            "top_recipients": [],
         }
 
 

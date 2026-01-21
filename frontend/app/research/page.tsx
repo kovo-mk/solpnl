@@ -2150,6 +2150,45 @@ export default function ResearchPage() {
                       )}
                     </div>
 
+                    {/* Top Recipients */}
+                    {creatorDistribution.distribution?.top_recipients && creatorDistribution.distribution.top_recipients.length > 0 && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Top Recipients</h3>
+                        <div className="space-y-2">
+                          {creatorDistribution.distribution.top_recipients.map((recipient: any, idx: number) => (
+                            <div key={recipient.address} className="bg-white dark:bg-gray-900 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400">#{idx + 1}</span>
+                                    <a
+                                      href={`https://solscan.io/account/${recipient.address}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                      {recipient.address.slice(0, 8)}...{recipient.address.slice(-6)}
+                                    </a>
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {recipient.transaction_count} transfer{recipient.transaction_count > 1 ? 's' : ''}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-bold text-gray-900 dark:text-white">
+                                    {recipient.total_received.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    tokens
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Interpretation */}
                     <div className="mt-6 bg-teal-50 dark:bg-teal-900/20 rounded-lg p-4 border border-teal-200 dark:border-teal-700">
                       <h4 className="font-semibold text-teal-900 dark:text-teal-300 mb-2">💡 What This Means</h4>
