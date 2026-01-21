@@ -1523,3 +1523,112 @@ async def get_wallet_trading_history(
     except Exception as e:
         logger.error(f"Error analyzing wallet trading history: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/wallet-full-history/{wallet_address}")
+async def get_wallet_full_history(
+    wallet_address: str,
+    limit: int = 100,
+    token_filter: Optional[str] = None
+):
+    """
+    Fetch complete transaction history for a wallet from Helius.
+
+    This endpoint:
+    - Fetches ALL transactions for the wallet (not limited to cached tokens)
+    - Shows transaction count and summary
+    - Optionally filters by specific token mint
+    - Returns enhanced transaction data from Helius
+
+    Args:
+        wallet_address: Solana wallet address
+        limit: Max transactions to fetch (default 100, max 1000)
+        token_filter: Optional token mint to filter transactions
+    """
+    try:
+        from services.helius import HeliusService
+
+        helius = HeliusService()
+
+        # Fetch wallet transactions from Helius
+        logger.info(f"Fetching transaction history for wallet {wallet_address[:8]}...")
+
+        all_transactions = []
+        before_signature = None
+        fetch_limit = min(limit, 1000)
+
+        # Fetch in batches of 100 (Helius max per request)
+        while len(all_transactions) < fetch_limit:
+            batch_size = min(100, fetch_limit - len(all_transactions))
+
+            transactions = await helius.get_wallet_transactions(
+                wallet_address=wallet_address,
+                limit=batch_size,
+                before_signature=before_signature
+            )
+
+            if not transactions:
+                break
+
+            all_transactions.extend(transactions)
+
+            # Get last signature for pagination
+            if len(transactions) == batch_size:
+                before_signature = transactions[-1].get("signature")
+            else:
+                break
+
+        logger.info(f"Fetched {len(all_transactions)} transactions for {wallet_address[:8]}")
+
+        # Analyze transaction types
+        tx_types = {}
+        token_mints_seen = set()
+
+        for tx in all_transactions:
+            tx_type = tx.get("type", "UNKNOWN")
+            tx_types[tx_type] = tx_types.get(tx_type, 0) + 1
+
+            # Track unique token mints
+            token_transfers = tx.get("tokenTransfers", [])
+            for transfer in token_transfers:
+                mint = transfer.get("mint")
+                if mint:
+                    token_mints_seen.add(mint)
+
+        # Filter by token if requested
+        filtered_transactions = all_transactions
+        if token_filter:
+            filtered_transactions = []
+            for tx in all_transactions:
+                token_transfers = tx.get("tokenTransfers", [])
+                for transfer in token_transfers:
+                    if transfer.get("mint") == token_filter:
+                        filtered_transactions.append(tx)
+                        break
+
+            logger.info(f"Filtered to {len(filtered_transactions)} transactions for token {token_filter[:8]}")
+
+        # Get first and last transaction timestamps
+        first_tx_time = None
+        last_tx_time = None
+
+        if all_transactions:
+            first_tx_time = all_transactions[0].get("timestamp")
+            last_tx_time = all_transactions[-1].get("timestamp")
+
+        return {
+            "wallet_address": wallet_address,
+            "total_transactions_fetched": len(all_transactions),
+            "filtered_transactions": len(filtered_transactions) if token_filter else len(all_transactions),
+            "token_filter": token_filter,
+            "unique_tokens_traded": len(token_mints_seen),
+            "transaction_types": tx_types,
+            "first_transaction_time": first_tx_time,
+            "last_transaction_time": last_tx_time,
+            "transactions": filtered_transactions[:100],  # Return first 100 for display
+            "note": f"Showing first {min(100, len(filtered_transactions))} of {len(filtered_transactions)} transactions"
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching wallet history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
