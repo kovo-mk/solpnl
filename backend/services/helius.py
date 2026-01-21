@@ -1151,26 +1151,29 @@ class HeliusService:
             logger.error(f"Error fetching Telegram info: {e}")
             return {}
 
-    async def analyze_mint_authority_distribution(
+    async def analyze_wallet_distribution(
         self,
         token_address: str,
-        mint_authority: str,
-        total_supply: float
+        wallet_address: str,
+        total_supply: float,
+        wallet_label: str = "wallet"
     ) -> Dict[str, Any]:
         """
-        Analyze token distribution from the mint authority wallet using Helius Developer API.
+        Analyze token distribution from a specific wallet (mint authority or creator).
 
-        Uses the new tokenAccounts filter to efficiently fetch only token-related transactions.
+        Uses Helius Developer API with tokenAccounts filter to efficiently fetch token transactions.
 
         Args:
             token_address: The token mint address
-            mint_authority: The mint authority wallet address
+            wallet_address: The wallet address to analyze
             total_supply: Total token supply for percentage calculations
+            wallet_label: Label for the wallet type (e.g., "mint_authority", "creator")
 
         Returns:
             Dict with distribution breakdown:
             {
-                "mint_authority": str,
+                "wallet_address": str,
+                "wallet_label": str,
                 "total_distributed": float,
                 "total_distributed_pct": float,
                 "sold_via_dex": float,
@@ -1179,10 +1182,11 @@ class HeliusService:
                 "transferred_to_wallets_pct": float,
                 "burned": float,
                 "burned_pct": float,
-                "transactions": List[Dict],  # Individual distribution events
+                "current_balance": float,
+                "transactions": List[Dict],
             }
         """
-        logger.info(f"Analyzing mint distribution for {token_address[:8]} from authority {mint_authority[:8]}")
+        logger.info(f"Analyzing {wallet_label} distribution for {token_address[:8]} from {wallet_address[:8]}")
 
         try:
             # Use Helius getTransactionsForAddress with tokenAccounts filter
@@ -1190,10 +1194,10 @@ class HeliusService:
 
             payload = {
                 "jsonrpc": "2.0",
-                "id": "mint-distribution",
+                "id": "wallet-distribution",
                 "method": "getTransactionsForAddress",
                 "params": [
-                    mint_authority,
+                    wallet_address,
                     {
                         "filters": {
                             "tokenAccounts": "balanceChanged"  # Only txns that moved tokens
@@ -1210,16 +1214,16 @@ class HeliusService:
                     if response.status != 200:
                         error_text = await response.text()
                         logger.error(f"Helius RPC error: {response.status} - {error_text}")
-                        return self._empty_distribution_result(mint_authority)
+                        return self._empty_distribution_result(wallet_address, wallet_label)
 
                     data = await response.json()
 
                     if "error" in data:
                         logger.error(f"RPC error: {data['error']}")
-                        return self._empty_distribution_result(mint_authority)
+                        return self._empty_distribution_result(wallet_address, wallet_label)
 
                     transactions = data.get("result", [])
-                    logger.info(f"Fetched {len(transactions)} transactions from mint authority")
+                    logger.info(f"Fetched {len(transactions)} transactions from {wallet_label}")
 
             # Analyze transactions to categorize distributions
             total_distributed = 0
@@ -1259,8 +1263,8 @@ class HeliusService:
                         to_account = transfer.get("toUserAccount")
                         amount = transfer.get("tokenAmount", 0)
 
-                        # Only count outbound transfers from mint authority
-                        if from_account != mint_authority:
+                        # Only count outbound transfers from the wallet
+                        if from_account != wallet_address:
                             continue
 
                         # Categorize the transfer
@@ -1301,7 +1305,8 @@ class HeliusService:
             logger.info(f"  - Burned: {burned:,.0f} ({burned_pct:.1f}%)")
 
             return {
-                "mint_authority": mint_authority,
+                "wallet_address": wallet_address,
+                "wallet_label": wallet_label,
                 "total_distributed": total_distributed,
                 "total_distributed_pct": total_distributed_pct,
                 "sold_via_dex": sold_via_dex,
@@ -1315,13 +1320,47 @@ class HeliusService:
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing mint distribution: {e}")
-            return self._empty_distribution_result(mint_authority)
+            logger.error(f"Error analyzing wallet distribution: {e}")
+            return self._empty_distribution_result(wallet_address, wallet_label)
 
-    def _empty_distribution_result(self, mint_authority: str) -> Dict[str, Any]:
+    async def analyze_mint_authority_distribution(
+        self,
+        token_address: str,
+        mint_authority: str,
+        total_supply: float
+    ) -> Dict[str, Any]:
+        """
+        Analyze token distribution from mint authority wallet.
+        Wrapper around analyze_wallet_distribution for backwards compatibility.
+        """
+        return await self.analyze_wallet_distribution(
+            token_address=token_address,
+            wallet_address=mint_authority,
+            total_supply=total_supply,
+            wallet_label="mint_authority"
+        )
+
+    async def analyze_creator_distribution(
+        self,
+        token_address: str,
+        creator_address: str,
+        total_supply: float
+    ) -> Dict[str, Any]:
+        """
+        Analyze token distribution from the creator/deployer wallet.
+        """
+        return await self.analyze_wallet_distribution(
+            token_address=token_address,
+            wallet_address=creator_address,
+            total_supply=total_supply,
+            wallet_label="creator"
+        )
+
+    def _empty_distribution_result(self, wallet_address: str, wallet_label: str = "wallet") -> Dict[str, Any]:
         """Return empty distribution result structure."""
         return {
-            "mint_authority": mint_authority,
+            "wallet_address": wallet_address,
+            "wallet_label": wallet_label,
             "total_distributed": 0,
             "total_distributed_pct": 0,
             "sold_via_dex": 0,

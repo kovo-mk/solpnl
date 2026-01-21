@@ -158,6 +158,9 @@ export default function ResearchPage() {
   const [showMintDistribution, setShowMintDistribution] = useState(false);
   const [mintDistribution, setMintDistribution] = useState<any>(null);
   const [loadingMintDistribution, setLoadingMintDistribution] = useState(false);
+  const [showCreatorDistribution, setShowCreatorDistribution] = useState(false);
+  const [creatorDistribution, setCreatorDistribution] = useState<any>(null);
+  const [loadingCreatorDistribution, setLoadingCreatorDistribution] = useState(false);
 
   // Initialize theme from localStorage
   useEffect(() => {
@@ -369,6 +372,26 @@ export default function ResearchPage() {
       setShowMintDistribution(true);
     } finally {
       setLoadingMintDistribution(false);
+    }
+  };
+
+  const fetchCreatorDistribution = async (tokenAddress: string) => {
+    setLoadingCreatorDistribution(true);
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+      const response = await fetch(`${API_BASE}/research/creator-distribution/${tokenAddress}`);
+
+      const data = await response.json();
+
+      // Set distribution data (handles both success and error responses from API)
+      setCreatorDistribution(data);
+      setShowCreatorDistribution(true);
+    } catch (err) {
+      console.error('Error fetching creator distribution:', err);
+      setCreatorDistribution({ error: 'Failed to load distribution data' });
+      setShowCreatorDistribution(true);
+    } finally {
+      setLoadingCreatorDistribution(false);
     }
   };
 
@@ -762,12 +785,12 @@ export default function ResearchPage() {
                   )}
                 </div>
 
-                {/* Mint Distribution Button */}
-                <div className="mt-6 flex justify-center">
+                {/* Distribution Analysis Buttons */}
+                <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
                   <button
                     onClick={() => fetchMintDistribution(report.token_address)}
                     disabled={loadingMintDistribution}
-                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {loadingMintDistribution ? (
                       <>
@@ -776,7 +799,23 @@ export default function ResearchPage() {
                       </>
                     ) : (
                       <>
-                        🏦 View Mint Distribution
+                        🏦 Mint Wallet
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => fetchCreatorDistribution(report.token_address)}
+                    disabled={loadingCreatorDistribution}
+                    className="px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold rounded-lg shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {loadingCreatorDistribution ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        👤 Creator Wallet
                       </>
                     )}
                   </button>
@@ -1968,6 +2007,160 @@ export default function ResearchPage() {
                         <li>• <strong>Transferred</strong>: Tokens sent to wallets (team allocation, airdrops, etc.)</li>
                         <li>• <strong>Burned</strong>: Permanently removed from circulation</li>
                       </ul>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Creator Distribution Modal */}
+        {showCreatorDistribution && creatorDistribution && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowCreatorDistribution(false)}>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    👤 Creator Wallet Distribution Analysis
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Tracking token distribution from creator/deployer wallet
+                  </p>
+                  <div className="mt-2 text-xs font-mono text-gray-500 dark:text-gray-400">
+                    Creator: {creatorDistribution.creator_address?.slice(0, 8)}...{creatorDistribution.creator_address?.slice(-6)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCreatorDistribution(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl font-bold"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[calc(80vh-200px)]">
+                {/* Show error message if no creator found */}
+                {creatorDistribution.error || creatorDistribution.message ? (
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-6 border border-yellow-200 dark:border-yellow-700">
+                    <div className="flex items-start gap-3">
+                      <span className="text-3xl">⚠️</span>
+                      <div>
+                        <h3 className="font-semibold text-yellow-900 dark:text-yellow-300 mb-2">
+                          {creatorDistribution.error || 'Creator Not Found'}
+                        </h3>
+                        <p className="text-yellow-800 dark:text-yellow-200">
+                          {creatorDistribution.message || 'Unable to identify the token creator for this token.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Distribution Summary */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      <div className="bg-gradient-to-br from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20 rounded-lg p-6 border border-green-200 dark:border-green-700">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Distributed</div>
+                        <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                          {creatorDistribution.distribution?.total_distributed?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          {creatorDistribution.distribution?.total_distributed_pct?.toFixed(2)}% of supply
+                        </div>
+                      </div>
+
+                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Supply</div>
+                        <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                          {creatorDistribution.total_supply?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          {creatorDistribution.distribution?.transaction_count} transactions
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Breakdown */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Distribution Breakdown</h3>
+
+                      {/* Sold via DEX */}
+                      <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-gray-900 dark:text-white">💱 Sold via DEX</span>
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            {creatorDistribution.distribution?.sold_via_dex_pct?.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
+                            <div
+                              className="bg-green-600 dark:bg-green-500 h-2 rounded-full transition-all duration-500"
+                              style={{ width: `${creatorDistribution.distribution?.sold_via_dex_pct || 0}%` }}
+                            />
+                          </div>
+                          <span className="text-lg font-bold text-green-600 dark:text-green-400">
+                            {creatorDistribution.distribution?.sold_via_dex?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Transferred to Wallets */}
+                      <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-semibold text-gray-900 dark:text-white">📤 Transferred to Wallets</span>
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            {creatorDistribution.distribution?.transferred_to_wallets_pct?.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
+                            <div
+                              className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-500"
+                              style={{ width: `${creatorDistribution.distribution?.transferred_to_wallets_pct || 0}%` }}
+                            />
+                          </div>
+                          <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                            {creatorDistribution.distribution?.transferred_to_wallets?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Burned */}
+                      {creatorDistribution.distribution?.burned > 0 && (
+                        <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-gray-900 dark:text-white">🔥 Burned</span>
+                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                              {creatorDistribution.distribution?.burned_pct?.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-3">
+                              <div
+                                className="bg-red-600 dark:bg-red-500 h-2 rounded-full transition-all duration-500"
+                                style={{ width: `${creatorDistribution.distribution?.burned_pct || 0}%` }}
+                              />
+                            </div>
+                            <span className="text-lg font-bold text-red-600 dark:text-red-400">
+                              {creatorDistribution.distribution?.burned?.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Interpretation */}
+                    <div className="mt-6 bg-teal-50 dark:bg-teal-900/20 rounded-lg p-4 border border-teal-200 dark:border-teal-700">
+                      <h4 className="font-semibold text-teal-900 dark:text-teal-300 mb-2">💡 What This Means</h4>
+                      <ul className="text-sm text-teal-800 dark:text-teal-200 space-y-1">
+                        <li>• <strong>Sold via DEX</strong>: Tokens the creator sold through liquidity pools</li>
+                        <li>• <strong>Transferred</strong>: Tokens sent to other wallets (team, marketing, investors)</li>
+                        <li>• <strong>Burned</strong>: Tokens permanently removed from circulation</li>
+                      </ul>
+                      <p className="text-xs text-teal-700 dark:text-teal-300 mt-3 italic">
+                        High DEX sales may indicate creator selling pressure. Large transfers could be team allocations or airdrop campaigns.
+                      </p>
                     </div>
                   </>
                 )}

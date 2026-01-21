@@ -896,3 +896,62 @@ async def get_mint_distribution(token_address: str):
     except Exception as e:
         logger.error(f"Error analyzing mint distribution: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/creator-distribution/{token_address}")
+async def get_creator_distribution(token_address: str):
+    """
+    Analyze token distribution from the creator/deployer wallet.
+
+    Shows how many tokens the original token creator has sold/transferred,
+    categorized by:
+    - Sold via DEX (Raydium, Orca, etc.)
+    - Transferred to other wallets (team allocation, airdrops, etc.)
+    - Burned
+
+    Returns distribution breakdown with percentages and transaction details.
+    """
+    try:
+        # Get token metadata to find creator
+        helius = get_helius_service()
+
+        # First get the creator address from Solscan
+        token_meta = await helius.get_solscan_token_meta(token_address)
+        creator_address = token_meta.get("creator")
+
+        if not creator_address:
+            return {
+                "error": "Creator address not found",
+                "message": "Unable to identify the token creator for this token"
+            }
+
+        # Get token info for supply
+        token_info = await helius.get_token_mint_info(token_address)
+        if not token_info:
+            raise HTTPException(status_code=404, detail="Token not found")
+
+        total_supply = token_info.get("supply", 0)
+        decimals = token_info.get("decimals", 9)
+
+        # Adjust supply for decimals
+        adjusted_supply = total_supply / (10 ** decimals)
+
+        # Analyze distribution from creator wallet
+        distribution = await helius.analyze_creator_distribution(
+            token_address,
+            creator_address,
+            adjusted_supply
+        )
+
+        return {
+            "token_address": token_address,
+            "creator_address": creator_address,
+            "total_supply": adjusted_supply,
+            "distribution": distribution
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error analyzing creator distribution: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
