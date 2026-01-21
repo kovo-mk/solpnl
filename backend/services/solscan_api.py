@@ -322,15 +322,18 @@ class SolscanProAPI:
             logger.info(f"Fetched {len(all_transfers)} NEW transfers from Solscan Pro")
 
             # Merge new transfers with cached data (if any)
+            new_transfer_count = len(all_transfers)
             if cached_data:
                 logger.info(f"Merging {len(all_transfers)} new transfers with {len(cached_data)} cached transfers")
                 all_transfers = cached_data + all_transfers
                 logger.info(f"Total transfers after merge: {len(all_transfers)}")
 
-            # Save to cache if database session is available
-            if self.db and all_transfers:
+            # Save to cache ONLY if we fetched NEW transfers (not just using cache)
+            if self.db and new_transfer_count > 0:
                 self._save_to_cache(token_address, all_transfers, days_back, is_complete=(len(all_transfers) < limit))
                 logger.info(f"✓ Saved {len(all_transfers)} total transfers to cache for {token_address[:8]}")
+            elif self.db and new_transfer_count == 0:
+                logger.info(f"✓ No new transfers to cache (using {len(all_transfers)} from cache)")
 
             # Convert to Helius-compatible format
             transactions = self._convert_to_helius_format(all_transfers, token_address)
