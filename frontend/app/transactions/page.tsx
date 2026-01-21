@@ -36,6 +36,8 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedToken, setExpandedToken] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [needsHistoryFetch, setNeedsHistoryFetch] = useState(false);
 
   // Fetch wallets
   const fetchWallets = useCallback(async () => {
@@ -59,17 +61,41 @@ export default function TransactionsPage() {
     }
 
     setLoading(true);
+    setNeedsHistoryFetch(false);
     try {
       const data = await api.getWalletTransactionsDetailed(selectedWallet);
       setHistory(data);
       setError(null);
     } catch (err: any) {
-      setError(err.message);
+      const errorMessage = err.message || '';
+      setError(errorMessage);
       setHistory(null);
+
+      // Check if error indicates we need to fetch complete history first
+      if (errorMessage.includes('wallet-complete-history')) {
+        setNeedsHistoryFetch(true);
+      }
     } finally {
       setLoading(false);
     }
   }, [selectedWallet]);
+
+  // Fetch complete wallet history
+  const handleFetchCompleteHistory = async () => {
+    if (!selectedWallet) return;
+
+    setFetching(true);
+    setError(null);
+    try {
+      await api.fetchWalletCompleteHistory(selectedWallet);
+      // After fetching, try to get the detailed history again
+      await fetchHistory();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setFetching(false);
+    }
+  };
 
   useEffect(() => {
     fetchWallets();
@@ -352,12 +378,37 @@ export default function TransactionsPage() {
         )}
 
         {/* Error State */}
-        {error && (
+        {error && needsHistoryFetch && (
+          <div className="mb-6 p-4 bg-blue-100 dark:bg-blue-500/10 border border-blue-300 dark:border-blue-500/30 rounded-xl">
+            <p className="text-blue-900 dark:text-blue-300 font-medium mb-2">Transaction History Not Yet Cached</p>
+            <p className="text-sm text-blue-700 dark:text-blue-400 mb-4">
+              This wallet's transaction history hasn't been fetched yet. Click the button below to fetch and cache all transactions.
+              This may take a minute for wallets with many transactions.
+            </p>
+            <button
+              type="button"
+              onClick={handleFetchCompleteHistory}
+              disabled={fetching}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg text-white font-medium transition-colors"
+            >
+              {fetching ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Fetching Transaction History...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Fetch Transaction History
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {error && !needsHistoryFetch && (
           <div className="mb-6 p-4 bg-red-100 dark:bg-red-500/10 border border-red-300 dark:border-red-500/30 rounded-xl text-red-600 dark:text-red-400">
             {error}
-            <p className="text-sm mt-2">
-              Make sure to fetch transaction history first using the wallet-complete-history endpoint.
-            </p>
           </div>
         )}
 

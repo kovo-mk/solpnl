@@ -299,6 +299,11 @@ class ApiClient {
   async getWalletTransactionsDetailed(address: string): Promise<WalletTransactionHistory> {
     return this.request<WalletTransactionHistory>(`/research/wallet-transactions-detailed/${address}`);
   }
+
+  // Fetch complete wallet transaction history (caches for future use)
+  async fetchWalletCompleteHistory(address: string): Promise<{ message: string; transaction_count: number }> {
+    return this.request(`/research/wallet-complete-history/${address}`, { method: 'POST' });
+  }
 }
 
 export const api = new ApiClient();
