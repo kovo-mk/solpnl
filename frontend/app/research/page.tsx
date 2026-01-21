@@ -166,6 +166,7 @@ export default function ResearchPage() {
   const [isDeepTracking, setIsDeepTracking] = useState(false);
   const [showWalletAnalysis, setShowWalletAnalysis] = useState(false);
   const [walletAnalysisInput, setWalletAnalysisInput] = useState('');
+  const [walletAnalysisTokenAddress, setWalletAnalysisTokenAddress] = useState('');
   const [walletAnalysisData, setWalletAnalysisData] = useState<any>(null);
   const [loadingWalletAnalysis, setLoadingWalletAnalysis] = useState(false);
 
@@ -440,7 +441,9 @@ export default function ResearchPage() {
   };
 
   const handleWalletAnalysis = async () => {
-    if (!report || !walletAnalysisInput.trim()) {
+    const tokenAddr = walletAnalysisTokenAddress.trim() || report?.token_address;
+
+    if (!tokenAddr || !walletAnalysisInput.trim()) {
       return;
     }
 
@@ -448,7 +451,7 @@ export default function ResearchPage() {
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
       const response = await fetch(
-        `${API_BASE}/research/wallet-trading-history/${report.token_address}/${walletAnalysisInput.trim()}`
+        `${API_BASE}/research/wallet-trading-history/${tokenAddr}/${walletAnalysisInput.trim()}`
       );
 
       const data = await response.json();
@@ -2629,36 +2632,52 @@ export default function ResearchPage() {
 
               <div className="p-6">
                 {/* Input Section */}
-                <div className="mb-6">
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Wallet Address
-                  </label>
-                  <div className="flex gap-2">
+                <div className="mb-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Token Address (optional)
+                    </label>
                     <input
                       type="text"
-                      value={walletAnalysisInput}
-                      onChange={(e) => setWalletAnalysisInput(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleWalletAnalysis()}
-                      placeholder="Enter wallet address (e.g., WGQnogYKikMu8...)"
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={walletAnalysisTokenAddress}
+                      onChange={(e) => setWalletAnalysisTokenAddress(e.target.value)}
+                      placeholder={`SOLCEX: AMjzRn1TBQwQfNAjHFeBb7uGbbqbJB7FzXAnGgdFPk6K (leave blank for ${report?.token_symbol || 'current token'})`}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                       disabled={loadingWalletAnalysis}
                     />
-                    <button
-                      type="button"
-                      onClick={handleWalletAnalysis}
-                      disabled={loadingWalletAnalysis || !walletAnalysisInput.trim()}
-                      className="px-6 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                      {loadingWalletAnalysis ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-                      ) : (
-                        'Analyze'
-                      )}
-                    </button>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Leave blank to use {report?.token_symbol || 'current token'}, or paste another token address
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    Paste a wallet address to see their complete trading history for {report.token_symbol || 'this token'}
-                  </p>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                      Wallet Address
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={walletAnalysisInput}
+                        onChange={(e) => setWalletAnalysisInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleWalletAnalysis()}
+                        placeholder="Enter wallet address (e.g., WGQnogYKikMu8...)"
+                        className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        disabled={loadingWalletAnalysis}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleWalletAnalysis}
+                        disabled={loadingWalletAnalysis || !walletAnalysisInput.trim()}
+                        className="px-6 py-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-700 hover:to-purple-700 text-white font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        {loadingWalletAnalysis ? (
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+                        ) : (
+                          'Analyze'
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Results Section */}
